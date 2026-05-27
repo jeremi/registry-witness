@@ -15,7 +15,9 @@ use axum_test::TestServer;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use registry_platform_audit::{verify_jsonl_lines, AuditEnvelope};
-use registry_platform_crypto::{did_jwk_from_public_jwk, verify, PrivateJwk};
+use registry_platform_crypto::{did_jwk_from_public_jwk, PrivateJwk};
+#[cfg(feature = "registry-witness-cel")]
+use registry_platform_crypto::verify;
 use registry_platform_testing::{
     fixtures, jwks_from_private_jwk, sign_ed25519_compact_jwt, sign_openid4vci_proof_jwt,
     MockHttpUpstream, MockIdp, FEDERATION_PROTOCOL, FEDERATION_REQUEST_JWT_TYPE,
@@ -458,6 +460,7 @@ fn tamper_jwt_signature(jwt: &str) -> String {
     parts.join(".")
 }
 
+#[cfg(feature = "registry-witness-cel")]
 fn verified_federation_response_claims(jwt: &str) -> Value {
     let parts = jwt.split('.').collect::<Vec<_>>();
     assert_eq!(parts.len(), 3, "compact JWT response has three segments");
@@ -475,6 +478,7 @@ fn verified_federation_response_claims(jwt: &str) -> Value {
     serde_json::from_slice(&payload).expect("response payload is JSON")
 }
 
+#[cfg(feature = "registry-witness-cel")]
 fn audit_records(path: &std::path::Path) -> Vec<Value> {
     std::fs::read_to_string(path)
         .expect("audit was written")
@@ -795,6 +799,7 @@ async fn federation_route_is_not_mounted_until_enabled() {
 }
 
 #[tokio::test]
+#[cfg(feature = "registry-witness-cel")]
 async fn federation_evaluation_returns_signed_response_and_rejects_replay() {
     set_federation_env();
     let upstream = TestServer::builder()
@@ -893,6 +898,7 @@ async fn federation_evaluation_returns_signed_response_and_rejects_replay() {
 }
 
 #[tokio::test]
+#[cfg(feature = "registry-witness-cel")]
 async fn federation_two_standalone_witnesses_smoke() {
     set_federation_env();
     let upstream = TestServer::builder()
@@ -1260,6 +1266,7 @@ async fn federation_request_claims_must_match_profile_before_source_read() {
 }
 
 #[tokio::test]
+#[cfg(feature = "registry-witness-cel")]
 async fn federation_stale_source_observation_returns_signed_evaluation_error() {
     set_federation_env();
     let upstream = TestServer::builder()
