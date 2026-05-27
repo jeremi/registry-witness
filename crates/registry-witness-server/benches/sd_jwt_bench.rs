@@ -16,7 +16,9 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use registry_witness_core::config::{
     CredentialDisclosureConfig, CredentialProfileConfig, HolderBindingConfig,
 };
-use registry_witness_core::model::{ClaimProvenance, ClaimResultView};
+use registry_witness_core::model::{
+    ClaimProvenance, ClaimResultView, Hashed, SubjectBinding, SubjectRefView,
+};
 use registry_witness_core::sd_jwt::{issue, EvidenceIssuer};
 use time::OffsetDateTime;
 
@@ -52,7 +54,10 @@ fn claim_result(claim_id: &str, value: serde_json::Value) -> ClaimResultView {
         claim_id: claim_id.to_string(),
         claim_version: "1.0.0".to_string(),
         subject_type: "farmer".to_string(),
-        subject_ref: "subject-perf-ref".to_string(),
+        subject_ref: SubjectRefView {
+            hash: Hashed::<SubjectBinding>::from_hash("hmac-sha256:subject-perf-ref"),
+            id_type: "farmer_id".to_string(),
+        },
         value: Some(value),
         satisfied: Some(true),
         disclosure: "value".to_string(),

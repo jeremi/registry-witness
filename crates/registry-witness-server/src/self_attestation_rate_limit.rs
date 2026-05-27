@@ -159,9 +159,9 @@ impl SelfAttestationRateLimitKeys {
                 reason: "subject_ref identifier is empty".to_string(),
             });
         }
-        let hashed = self
-            .hasher
-            .hash(&format!("registry-witness:subject-ref:{id_type}:{subject_ref}"));
+        let hashed = self.hasher.hash(&format!(
+            "registry-witness:subject-ref:{id_type}:{subject_ref}"
+        ));
         ensure_bounded(&hashed)?;
         Ok(Hashed::from_hash(hashed))
     }

@@ -213,6 +213,7 @@ impl RegistryWitnessApiState {
     #[must_use]
     pub fn new(
         evidence: Arc<EvidenceConfig>,
+        audit_hasher: AuditKeyHasher,
         source: Arc<dyn SourceReader>,
         store: Arc<EvidenceStore>,
         issuers: Arc<dyn EvidenceIssuerResolver>,
@@ -220,6 +221,7 @@ impl RegistryWitnessApiState {
         Self::new_with_self_attestation(
             evidence,
             Arc::new(SelfAttestationConfig::default()),
+            audit_hasher,
             source,
             store,
             issuers,
@@ -230,6 +232,7 @@ impl RegistryWitnessApiState {
     pub fn new_with_self_attestation(
         evidence: Arc<EvidenceConfig>,
         self_attestation: Arc<SelfAttestationConfig>,
+        audit_hasher: AuditKeyHasher,
         source: Arc<dyn SourceReader>,
         store: Arc<EvidenceStore>,
         issuers: Arc<dyn EvidenceIssuerResolver>,
@@ -238,6 +241,7 @@ impl RegistryWitnessApiState {
             evidence,
             self_attestation,
             Arc::new(Oid4vciConfig::default()),
+            audit_hasher,
             source,
             store,
             issuers,
@@ -249,6 +253,7 @@ impl RegistryWitnessApiState {
         evidence: Arc<EvidenceConfig>,
         self_attestation: Arc<SelfAttestationConfig>,
         oid4vci: Arc<Oid4vciConfig>,
+        audit_hasher: AuditKeyHasher,
         source: Arc<dyn SourceReader>,
         store: Arc<EvidenceStore>,
         issuers: Arc<dyn EvidenceIssuerResolver>,
@@ -257,7 +262,7 @@ impl RegistryWitnessApiState {
             evidence,
             self_attestation,
             oid4vci,
-            AuditKeyHasher::unkeyed_dev_only(),
+            audit_hasher,
             source,
             store,
             issuers,
@@ -3253,6 +3258,7 @@ mod tests {
                 Arc::new(evidence),
                 Arc::new(self_attestation),
                 Arc::new(oid4vci),
+                AuditKeyHasher::unkeyed_dev_only(),
                 Arc::new(CountingSource {
                     reads: Arc::clone(&reads),
                 }),
@@ -3374,6 +3380,7 @@ mod tests {
                 Arc::new(evidence),
                 Arc::new(self_attestation),
                 Arc::new(oid4vci),
+                AuditKeyHasher::unkeyed_dev_only(),
                 Arc::new(CountingSource {
                     reads: Arc::clone(&reads),
                 }),
@@ -3653,6 +3660,7 @@ mod tests {
         let state = RegistryWitnessApiState::new_with_self_attestation(
             Arc::new(evidence.clone()),
             Arc::new(config),
+            AuditKeyHasher::unkeyed_dev_only(),
             Arc::new(CountingSource::default()),
             Arc::new(EvidenceStore::default()),
             Arc::new(NoopIssuerResolver),
@@ -3765,6 +3773,7 @@ mod tests {
         let state = RegistryWitnessApiState::new_with_self_attestation(
             Arc::new(evidence.clone()),
             Arc::new(config),
+            AuditKeyHasher::unkeyed_dev_only(),
             Arc::new(CountingSource::default()),
             Arc::new(EvidenceStore::default()),
             Arc::new(NoopIssuerResolver),
@@ -3817,6 +3826,7 @@ mod tests {
         let state = RegistryWitnessApiState::new_with_self_attestation(
             Arc::new(evidence.clone()),
             Arc::new(config),
+            AuditKeyHasher::unkeyed_dev_only(),
             Arc::new(CountingSource::default()),
             Arc::new(EvidenceStore::default()),
             Arc::new(NoopIssuerResolver),
@@ -4011,6 +4021,7 @@ mod tests {
         let state = Arc::new(RegistryWitnessApiState::new_with_self_attestation(
             Arc::new(evidence_config()),
             Arc::new(self_attestation_config()),
+            AuditKeyHasher::unkeyed_dev_only(),
             Arc::new(CountingSource {
                 reads: Arc::clone(&reads),
             }),

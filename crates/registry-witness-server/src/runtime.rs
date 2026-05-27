@@ -185,8 +185,7 @@ use registry_witness_core::{
     EvaluateRequest, EvidenceConfig, EvidenceError, EvidenceFormat, EvidencePrincipal,
     RenderRequest, RuleConfig, SelfAttestationConfig, SelfAttestationDenialCode,
     SourceBindingConfig, SourceCapability, StoredSelfAttestationMetadata, SubjectRefView,
-    SubjectRequest,
-    FORMAT_CCCEV_JSONLD, FORMAT_CLAIM_RESULT_JSON, FORMAT_SD_JWT_VC,
+    SubjectRequest, FORMAT_CCCEV_JSONLD, FORMAT_CLAIM_RESULT_JSON, FORMAT_SD_JWT_VC,
     SD_JWT_VC_HOLDER_BINDING_METHOD, SD_JWT_VC_ISSUER_KEY_TYPE, SD_JWT_VC_JWT_TYP,
     SD_JWT_VC_SIGNING_ALG,
 };
@@ -973,7 +972,13 @@ impl RegistryWitnessRuntime {
                 let result = internal
                     .get(claim_id)
                     .ok_or(EvidenceError::RuleEvaluationFailed)?;
-                view_claim(&self.self_attestation_rate_keys, result, claim, disclosure, &format)
+                view_claim(
+                    &self.self_attestation_rate_keys,
+                    result,
+                    claim,
+                    disclosure,
+                    &format,
+                )
             })
             .collect::<Result<Vec<_>, EvidenceError>>()?;
         let expires_at = self_attestation
@@ -1278,7 +1283,13 @@ impl RegistryWitnessRuntime {
                 let result = internal
                     .get(claim_id)
                     .ok_or(EvidenceError::RuleEvaluationFailed)?;
-                view_claim(&self.self_attestation_rate_keys, result, claim, disclosure, &format)
+                view_claim(
+                    &self.self_attestation_rate_keys,
+                    result,
+                    claim,
+                    disclosure,
+                    &format,
+                )
             })
             .collect::<Result<Vec<_>, EvidenceError>>()
     }

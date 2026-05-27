@@ -864,6 +864,8 @@ impl Oid4vciCredentialConfigurationConfig {
             .claims
             .iter()
             .find(|claim| claim.id == self.claim_id)
+            // SAFETY: the loop above has already rejected every unknown
+            // credential configuration claim id before this lookup.
             .expect("claim id was checked above");
         if !claim
             .credential_profiles
@@ -953,6 +955,7 @@ fn validate_oid4vci_endpoint_url(
     credential_issuer: &str,
 ) -> Result<(), EvidenceConfigError> {
     validate_oid4vci_public_url(name, url)?;
+    // SAFETY: validate_oid4vci_public_url accepted the absolute URL shape.
     let (_, _, path) = split_absolute_url(url).expect("absolute URL was validated above");
     if path.is_empty() || path == "/" {
         return invalid_oid4vci(format!("{name} must include an endpoint path"));
@@ -1187,6 +1190,8 @@ impl SelfAttestationConfig {
             let profile = evidence
                 .credential_profiles
                 .get(profile_id)
+                // SAFETY: the preceding credential_profiles loop rejects
+                // every profile id missing from evidence.credential_profiles.
                 .expect("profile id was checked above");
             validate_self_attestation_profile(
                 profile_id,
@@ -1203,6 +1208,8 @@ impl SelfAttestationConfig {
                 .claims
                 .iter()
                 .find(|claim| claim.id == *claim_id)
+                // SAFETY: the preceding allowed_claims loop rejects every
+                // claim id missing from evidence.claims.
                 .expect("claim id was checked above");
             validate_self_attestation_claim(
                 claim,
@@ -1828,6 +1835,7 @@ impl Default for RegistryWitnessHttpConfig {
 }
 
 fn default_bind_addr() -> SocketAddr {
+    // SAFETY: the literal is a valid loopback socket address.
     "127.0.0.1:8081"
         .parse()
         .expect("default bind address is valid")
