@@ -4338,9 +4338,10 @@ mod tests {
         .expect_err("exp > iat + 300 must be rejected");
         assert!(matches!(err, EvidenceError::HolderProofRequired));
 
+        let valid_now = OffsetDateTime::now_utc().unix_timestamp() + 20;
         let proof_just_positive = sign_holder_proof(
             &holder_id,
-            windowed_proof_payload(&holder_id, service_id, now, now + 1),
+            windowed_proof_payload(&holder_id, service_id, valid_now, valid_now + 1),
         );
         validate_holder_proof_payload(
             &proof_just_positive,
