@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 
 use registry_platform_crypto::validate_did_web_https_issuer_binding;
 use registry_platform_oid4vci::{
-    CREDENTIAL_SIGNING_ALG_EDDSA, CRYPTOGRAPHIC_BINDING_METHOD_DID_JWK, PKCE_METHOD_S256,
+    CREDENTIAL_SIGNING_ALG_EDDSA, CRYPTOGRAPHIC_BINDING_METHOD_DID_JWK,
     SD_JWT_VC_FORMAT as OID4VCI_SD_JWT_VC_FORMAT,
 };
 use serde::{Deserialize, Serialize};
@@ -15,6 +15,8 @@ use serde::{Deserialize, Serialize};
 use crate::model::{
     DisclosureProfile, FORMAT_SD_JWT_VC, SD_JWT_VC_HOLDER_BINDING_METHOD, SD_JWT_VC_SIGNING_ALG,
 };
+
+const PKCE_METHOD_S256: &str = "S256";
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
