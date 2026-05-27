@@ -45,6 +45,7 @@ use serde_json::{json, Map, Value};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use ulid::Ulid;
+use zeroize::Zeroizing;
 
 use crate::{
     router, EvidenceAuditContext, EvidenceErrorCodeContext, EvidenceIssuerResolver, EvidenceStore,
@@ -572,13 +573,15 @@ impl EvidenceIssuerRegistry {
     pub fn from_config(config: &EvidenceConfig) -> Result<Self, StandaloneServerError> {
         let mut issuers = BTreeMap::new();
         for (profile_id, profile) in &config.credential_profiles {
-            let raw = env::var(&profile.issuer_key_env)
-                .ok()
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    StandaloneServerError::InvalidIssuerEnv(profile.issuer_key_env.clone())
-                })?;
-            let issuer = EvidenceIssuer::from_profile_key(profile, &raw).map_err(|_| {
+            let raw = Zeroizing::new(
+                env::var(&profile.issuer_key_env)
+                    .ok()
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        StandaloneServerError::InvalidIssuerEnv(profile.issuer_key_env.clone())
+                    })?,
+            );
+            let issuer = EvidenceIssuer::from_profile_key(profile, raw.as_str()).map_err(|_| {
                 StandaloneServerError::InvalidIssuerEnv(profile.issuer_key_env.clone())
             })?;
             issuers.insert(profile_id.clone(), issuer);
