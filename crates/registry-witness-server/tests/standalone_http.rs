@@ -15,9 +15,9 @@ use axum_test::TestServer;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use registry_platform_audit::{verify_jsonl_lines, AuditEnvelope};
-use registry_platform_crypto::{did_jwk_from_public_jwk, PrivateJwk};
 #[cfg(feature = "registry-witness-cel")]
 use registry_platform_crypto::verify;
+use registry_platform_crypto::{did_jwk_from_public_jwk, PrivateJwk};
 use registry_platform_testing::{
     fixtures, jwks_from_private_jwk, sign_ed25519_compact_jwt, sign_openid4vci_proof_jwt,
     MockHttpUpstream, MockIdp, FEDERATION_PROTOCOL, FEDERATION_REQUEST_JWT_TYPE,
