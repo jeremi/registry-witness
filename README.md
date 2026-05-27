@@ -1,5 +1,7 @@
 # Registry Witness
 
+> **Experimental:** This codebase is under active development. Its APIs are evolving quickly and may be unstable.
+
 Standalone Registry Witness workspace, claim evaluation, credential issuance, and attestation service.
 
 This repository owns claim configuration, claim evaluation, disclosure policy,
