@@ -7,7 +7,10 @@ use jsonwebtoken::Algorithm;
 use registry_platform_crypto::PrivateJwk;
 use registry_platform_httputil::FetchUrlPolicy;
 use registry_platform_oidc::{JwksFetcher, JwksFetcherConfig, TokenVerifier, TokenVerifierConfig};
-use registry_witness_core::{FederationConfig, FederationPeerConfig, FEDERATION_REQUEST_JWT_TYP};
+use registry_witness_core::{
+    FederationConfig, FederationPeerConfig, FEDERATION_REPLAY_IN_PROCESS_SINGLE_INSTANCE_ONLY,
+    FEDERATION_REQUEST_JWT_TYP,
+};
 use zeroize::Zeroizing;
 
 use super::replay::FederationReplayStore;
@@ -49,6 +52,12 @@ impl FederationRuntimeState {
                 error.to_string(),
             )
         })?;
+        if config.replay.storage == FEDERATION_REPLAY_IN_PROCESS_SINGLE_INSTANCE_ONLY {
+            tracing::warn!(
+                target: "registry_witness::federation",
+                "federation replay store is in-process single-instance only; do not deploy active-active"
+            );
+        }
         let pairwise_subject_hash_secret = env::var(&config.pairwise_subject_hash.secret_env)
             .ok()
             .filter(|value| !value.is_empty())
