@@ -7,8 +7,9 @@ handling, bounded response reads, or redacted error mapping.
 ## Status
 
 The Rust client is the primary typed client. Python and Node.js bindings are
-available under `bindings/`. OID4VCI and federation client methods are
-feature-gated.
+available under `bindings/`. Rust keeps OID4VCI and federation feature-gated;
+the pure Python and Node wrappers expose those HTTP endpoint helpers directly
+without generating holder proofs or signing federation JWTs.
 
 ## Rust Client
 
@@ -72,7 +73,9 @@ and request bodies.
 ## Python Binding
 
 The Python package under `bindings/python` exposes high-level and raw evaluate
-helpers, async evaluate, and redacted Problem Details mapping.
+helpers, async evaluate, discovery and JWKS helpers, OID4VCI endpoint wrappers,
+federation JWS submission, route-aware retry policy, and redacted Problem
+Details mapping.
 
 Use the binding for Python application code that should not reimplement the
 wire contract or error parsing.
@@ -80,7 +83,9 @@ wire contract or error parsing.
 ## Node.js Binding
 
 The Node package under `bindings/node` is a promise-based client with
-TypeScript declarations.
+TypeScript declarations. It exposes the same core routes as the Python binding,
+adds high-level camelCase conversion, supports `AbortSignal`, and includes
+discovery/JWKS, OID4VCI, federation, and route-aware retry helpers.
 
 Useful package scripts:
 
