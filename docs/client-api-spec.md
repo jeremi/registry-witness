@@ -317,6 +317,10 @@ Initial route coverage:
 `GET /claims` has no pagination in the current server contract and returns
 `{"data": [...]}`.
 
+`GET /ready` is a readiness probe, not a generic Problem Details route. A `503`
+response uses the same readiness JSON body as `200`, with `status:
+"not_ready"` and opaque readiness counters.
+
 Separate feature-gated modules:
 
 - OID4VCI:
