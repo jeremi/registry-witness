@@ -102,4 +102,4 @@ jobs:
           done
 
       - name: Run perf Python tests
-        run: uv run --project perf python -m pytest
+        run: uv run --project perf python -m pytest perf/tests
