@@ -15,7 +15,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use registry_notary_client::auth::{AuthHeader, AuthProvider};
 use registry_notary_client::{
-    NotaryClientBuildError, NotaryClientError, RegistryNotaryClient, RequestOptions, RetryPolicy,
+    CredentialIssueResponse, NotaryClientBuildError, NotaryClientError, NotaryResponse,
+    RegistryNotaryClient, RequestOptions, RetryPolicy,
 };
 use registry_notary_core::{BatchEvaluateResponse, BatchStatus, FORMAT_CLAIM_RESULT_JSON};
 use secrecy::SecretString;
@@ -53,6 +54,59 @@ async fn debug_redacts_auth_material() {
     assert!(!rendered.contains("super-secret-token"));
     assert!(!rendered.contains("another-secret"));
     assert!(rendered.contains("<redacted>"));
+}
+
+#[test]
+fn credential_issue_response_debug_redacts_credential_material() {
+    let response = CredentialIssueResponse {
+        credential_id: "cred-1".to_string(),
+        credential_profile: "profile-1".to_string(),
+        format: "application/dc+sd-jwt".to_string(),
+        issuer: "did:web:notary.example".to_string(),
+        expires_at: "2026-05-29T00:00:00Z".to_string(),
+        credential: "issuer.jwt~disclosure-secret~".to_string(),
+        issuer_signed_jwt: "issuer.jwt".to_string(),
+        disclosures: vec!["disclosure-secret".to_string()],
+    };
+
+    let debug = format!("{response:?}");
+
+    assert!(debug.contains("cred-1"));
+    assert!(debug.contains("<redacted>"));
+    assert!(!debug.contains("issuer.jwt"));
+    assert!(!debug.contains("disclosure-secret"));
+    assert!(!debug.contains("issuer.jwt~disclosure-secret~"));
+
+    let wrapped = NotaryResponse {
+        body: response,
+        request_id: Some("req-credential".to_string()),
+        retry_after: None,
+    };
+    let wrapped_debug = format!("{wrapped:?}");
+
+    assert!(wrapped_debug.contains("req-credential"));
+    assert!(wrapped_debug.contains("<redacted>"));
+    assert!(!wrapped_debug.contains("issuer.jwt"));
+    assert!(!wrapped_debug.contains("disclosure-secret"));
+}
+
+#[test]
+fn notary_response_debug_keeps_non_sensitive_body_metadata() {
+    let response = NotaryResponse {
+        body: registry_notary_client::HealthResponse {
+            status: "ok".to_string(),
+            checks: json!({ "database": "ready" }),
+        },
+        request_id: Some("req-health".to_string()),
+        retry_after: None,
+    };
+
+    let debug = format!("{response:?}");
+
+    assert!(debug.contains("req-health"));
+    assert!(debug.contains("ok"));
+    assert!(debug.contains("database"));
+    assert!(!debug.contains("<redacted>"));
 }
 
 struct FixedAuthProvider;
@@ -541,15 +595,13 @@ async fn problem_debug_redacts_detail() {
 }
 
 #[tokio::test]
-async fn body_too_large_carries_request_id() {
+async fn body_too_large_error_is_opaque_and_carries_request_id() {
+    let body = format!("credential-secret-{}", "x".repeat(80 * 1024));
     let app = Router::new().route(
         "/healthz",
-        get(|| async {
-            (
-                StatusCode::OK,
-                [("x-request-id", "req-large")],
-                "x".repeat(80 * 1024),
-            )
+        get(move || {
+            let body = body.clone();
+            async move { (StatusCode::OK, [("x-request-id", "req-large")], body) }
         }),
     );
     let base = spawn(app).await;
@@ -560,6 +612,11 @@ async fn body_too_large_carries_request_id() {
     let error = client.health().await.expect_err("body cap triggers");
     assert!(matches!(error, NotaryClientError::BodyTooLarge { .. }));
     assert_eq!(error.request_id(), Some("req-large"));
+    assert_eq!(
+        error.to_string(),
+        "response body exceeded configured size limit"
+    );
+    assert!(!format!("{error:?}").contains("credential-secret"));
 }
 
 #[tokio::test]
@@ -630,6 +687,9 @@ async fn oid4vci_errors_use_oid4vci_envelope() {
         .oid4vci_nonce(None, RequestOptions::default())
         .await
         .expect_err("oid4vci error maps");
+
+    assert_eq!(error.to_string(), "openid4vci error: invalid_request");
+    assert!(!format!("{error:?}").contains("subj-1"));
 
     match error {
         NotaryClientError::Oid4vci { error, .. } => {
@@ -704,6 +764,21 @@ async fn oid4vci_success_routes_parse_typed_responses() {
     );
     assert_eq!(nonce.body.c_nonce, "nonce-1");
     assert_eq!(credential.body.credential, "sd-jwt-credential");
+
+    let metadata_debug = format!("{metadata:?}");
+    assert!(metadata_debug.contains("https://issuer.example"));
+
+    let offer_debug = format!("{offer:?}");
+    assert!(offer_debug.contains("person_is_alive_sd_jwt"));
+
+    let nonce_debug = format!("{nonce:?}");
+    assert!(nonce_debug.contains("<redacted>"));
+    assert!(!nonce_debug.contains("nonce-1"));
+
+    let credential_debug = format!("{credential:?}");
+    assert!(credential_debug.contains("<redacted>"));
+    assert!(!credential_debug.contains("sd-jwt-credential"));
+    assert!(!credential_debug.contains("proof-jwt"));
 }
 
 async fn evaluate_handler(headers: HeaderMap, body: Bytes) -> Response {

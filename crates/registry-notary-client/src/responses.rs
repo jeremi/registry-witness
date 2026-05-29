@@ -1,10 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Client-owned response DTOs and ergonomic wrappers.
 
+use std::fmt;
+
 use registry_notary_core::{BatchEvaluateResponse, BatchItemResponse, ClaimResultView};
 use serde::{Deserialize, Serialize};
 
 use crate::options::RetryAfter;
+
+#[doc(hidden)]
+pub trait SafeDebug {
+    fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result;
+}
+
+macro_rules! impl_safe_debug {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl SafeDebug for $t {
+                fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    fmt::Debug::fmt(self, f)
+                }
+            }
+        )*
+    };
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvaluateResponse {
@@ -21,7 +40,7 @@ pub struct FormatsResponse {
     pub formats: Vec<registry_notary_core::EvidenceFormat>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CredentialIssueResponse {
     pub credential_id: String,
     pub credential_profile: String,
@@ -31,6 +50,21 @@ pub struct CredentialIssueResponse {
     pub credential: String,
     pub issuer_signed_jwt: String,
     pub disclosures: Vec<String>,
+}
+
+impl fmt::Debug for CredentialIssueResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CredentialIssueResponse")
+            .field("credential_id", &self.credential_id)
+            .field("credential_profile", &self.credential_profile)
+            .field("format", &self.format)
+            .field("issuer", &self.issuer)
+            .field("expires_at", &self.expires_at)
+            .field("credential", &"<redacted>")
+            .field("issuer_signed_jwt", &"<redacted>")
+            .field("disclosures", &"<redacted>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -62,11 +96,68 @@ pub struct HealthResponse {
     pub checks: serde_json::Value,
 }
 
-#[derive(Debug, Clone)]
+impl_safe_debug!(
+    EvaluateResponse,
+    ListClaimsResponse,
+    FormatsResponse,
+    CredentialIssueResponse,
+    CredentialStatusResponse,
+    AdminReloadResponse,
+    HealthResponse,
+    BatchEvaluateResponse,
+    serde_json::Value,
+    String,
+);
+
+impl<T: fmt::Debug> SafeDebug for Vec<T> {
+    fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(self, f)
+    }
+}
+
+#[cfg(feature = "oid4vci")]
+impl_safe_debug!(
+    registry_platform_oid4vci::CredentialIssuerMetadata,
+    registry_platform_oid4vci::CredentialOffer,
+);
+
+#[cfg(feature = "oid4vci")]
+impl SafeDebug for registry_platform_oid4vci::NonceResponse {
+    fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("<redacted>")
+    }
+}
+
+#[cfg(feature = "oid4vci")]
+impl SafeDebug for registry_platform_oid4vci::CredentialResponse {
+    fn fmt_debug(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("<redacted>")
+    }
+}
+
+#[derive(Clone)]
 pub struct NotaryResponse<T> {
     pub body: T,
     pub request_id: Option<String>,
     pub retry_after: Option<RetryAfter>,
+}
+
+struct SafeDebugBody<'a, T>(&'a T);
+
+impl<T: SafeDebug> fmt::Debug for SafeDebugBody<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt_debug(f)
+    }
+}
+
+impl<T: SafeDebug> fmt::Debug for NotaryResponse<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NotaryResponse")
+            .field("body", &SafeDebugBody(&self.body))
+            .field("request_id", &self.request_id)
+            .field("retry_after", &self.retry_after)
+            .finish()
+    }
 }
 
 impl<T> NotaryResponse<T> {
@@ -109,6 +200,8 @@ impl Evaluation {
 pub struct BatchEvaluation {
     pub inner: BatchEvaluateResponse,
 }
+
+impl_safe_debug!(Evaluation, BatchEvaluation);
 
 impl BatchEvaluation {
     pub fn succeeded(&self) -> impl Iterator<Item = &BatchItemResponse> {
