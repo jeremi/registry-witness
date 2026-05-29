@@ -34,6 +34,13 @@ Examples:
 | `source.not_found` | 404 | Configured source lookup found no matching record |
 | `source.ambiguous` | 409 | Source lookup returned too many matching records |
 | `source.unavailable` | 503 | Upstream source failed or timed out |
+| `claim.not_found` | 404 | Requested claim id is not configured |
+| `claim.disclosure_not_allowed` | 403 | Requested disclosure is not allowed for the claim |
+| `claim.format_not_supported` | 406 | Requested output format is not supported for the claim |
+| `evaluation.not_found` | 404 | Stored evaluation is not available for render or issuance |
+| `credential.holder_proof_required` | 400 | Credential issuance needs a holder proof |
+| `credential.holder_proof_replay` | 409 | Holder proof JWT has already been consumed |
+| `idempotency.conflict` | 409 | Idempotency key was reused with a different request |
 | `credential_status.disabled` | 404 | Credential status endpoint is disabled |
 | `credential_status.not_found` | 404 | Credential status record is not available |
 | `self_attestation.denied` | 403 | Self-attestation policy denied the request |

@@ -561,6 +561,10 @@ fn assert_public_diagnostic_is_redacted(body: &Value, sensitive_values: &[&str])
     assert!(body["code"].as_str().is_some());
     assert!(body["status"].as_u64().is_some());
     assert!(body["title"].as_str().is_some());
+    assert!(body["type"]
+        .as_str()
+        .is_some_and(|value| value.starts_with("https://docs.registry-notary.dev/problems/")));
+    assert!(body["detail"].as_str().is_some());
     for sensitive in sensitive_values {
         assert!(
             !serialized.contains(sensitive),
