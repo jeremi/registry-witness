@@ -67,6 +67,7 @@ The client:
 - requires HTTPS for non-loopback hosts;
 - disables redirects and ignores proxy environment variables;
 - bounds every response body;
+- returns successful response status in `NotaryResponse<T>`;
 - captures `X-Request-Id` before body decoding;
 - rejects `Idempotency-Key` on routes that do not honor it;
 - retries only GET routes and idempotent batch evaluation;

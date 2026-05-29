@@ -67,15 +67,16 @@ Retries are disabled by default. When enabled, they are still route-aware:
   submission are never retried because those POST routes are not deduplicated by
   the server.
 
-`Retry-After` seconds are honored. Bindings also handle HTTP-date
-`Retry-After`; Node and Python use the response `Date` header as the reference
-clock when it is present.
+`Retry-After` seconds are honored. Rust, Python, and Node also handle HTTP-date
+`Retry-After` by using the response `Date` header as the reference clock when it
+is present.
 
 ### Response Metadata
 
 All typed Rust methods return `NotaryResponse<T>` with:
 
 - `body`: decoded response body.
+- `status`: HTTP status returned by the server.
 - `request_id`: server `X-Request-Id`, when present.
 - `retry_after`: server `Retry-After`, when present.
 

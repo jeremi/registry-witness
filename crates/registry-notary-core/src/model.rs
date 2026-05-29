@@ -877,11 +877,15 @@ pub struct EvidenceAuditEvent {
     pub method: String,
     pub path: String,
     pub status: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claim_hash: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purposes: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub row_count: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error_code: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub access_mode: Option<AccessMode>,
@@ -1077,6 +1081,26 @@ mod tests {
             decoded.policy_hash.as_ref().map(Hashed::as_str),
             Some("sha256:policy")
         );
+    }
+
+    #[test]
+    fn audit_event_missing_optional_fields_defaults_to_none() {
+        let decoded: EvidenceAuditEvent = serde_json::from_value(json!({
+            "event_id": "01HX",
+            "occurred_at": "2026-05-25T00:00:00Z",
+            "decision": "allowed",
+            "method": "GET",
+            "path": "/claims",
+            "status": 200
+        }))
+        .expect("legacy audit event deserializes");
+
+        assert!(decoded.verification_id.is_none());
+        assert!(decoded.claim_hash.is_none());
+        assert!(decoded.purposes.is_none());
+        assert!(decoded.row_count.is_none());
+        assert!(decoded.error_code.is_none());
+        assert!(decoded.access_mode.is_none());
     }
 
     #[test]

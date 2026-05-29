@@ -211,6 +211,7 @@ impl RegistryNotaryClient {
             if let Some(body) = cached {
                 return Ok(NotaryResponse {
                     body,
+                    status: StatusCode::OK,
                     request_id: None,
                     retry_after: None,
                 });
@@ -249,16 +250,13 @@ impl RegistryNotaryClient {
             )
             .await?;
         let request_id = response.request_id.clone();
+        let status = response.status;
         String::from_utf8(response.body).map_or_else(
-            |_| {
-                Err(NotaryClientError::Decode {
-                    status: StatusCode::OK,
-                    request_id,
-                })
-            },
+            |_| Err(NotaryClientError::Decode { status, request_id }),
             |body| {
                 Ok(NotaryResponse {
                     body,
+                    status,
                     request_id: response.request_id,
                     retry_after: response.retry_after,
                 })
@@ -597,16 +595,13 @@ impl RegistryNotaryClient {
         .await
         .and_then(|response| {
             let request_id = response.request_id.clone();
+            let status = response.status;
             String::from_utf8(response.body).map_or_else(
-                |_| {
-                    Err(NotaryClientError::Decode {
-                        status: StatusCode::OK,
-                        request_id,
-                    })
-                },
+                |_| Err(NotaryClientError::Decode { status, request_id }),
                 |body| {
                     Ok(NotaryResponse {
                         body,
+                        status,
                         request_id: response.request_id,
                         retry_after: response.retry_after,
                     })
@@ -650,7 +645,7 @@ impl RegistryNotaryClient {
             .await?;
         let body =
             serde_json::from_slice(&response.body).map_err(|_| NotaryClientError::Decode {
-                status: StatusCode::OK,
+                status: response.status,
                 request_id: response.request_id.clone(),
             })?;
         Ok(response.map(body))
@@ -688,7 +683,7 @@ impl RegistryNotaryClient {
             .await?;
         let body =
             serde_json::from_slice(&response.body).map_err(|_| NotaryClientError::Decode {
-                status: StatusCode::OK,
+                status: response.status,
                 request_id: response.request_id.clone(),
             })?;
         Ok(response.map(body))
@@ -797,6 +792,10 @@ impl RegistryNotaryClient {
                 .headers()
                 .get(headers::RETRY_AFTER)
                 .and_then(|value| value.to_str().ok()),
+            response
+                .headers()
+                .get(headers::DATE)
+                .and_then(|value| value.to_str().ok()),
         );
         let bytes =
             read_bounded(response, limit)
@@ -807,6 +806,7 @@ impl RegistryNotaryClient {
         if status.is_success() || accepted_status == Some(status) {
             return Ok(NotaryResponse {
                 body: bytes,
+                status,
                 request_id,
                 retry_after,
             });
@@ -1176,6 +1176,7 @@ impl<'a> EvaluateBuilder<'a> {
                 let results = response.body.results;
                 NotaryResponse {
                     body: Evaluation { results },
+                    status: response.status,
                     request_id,
                     retry_after,
                 }

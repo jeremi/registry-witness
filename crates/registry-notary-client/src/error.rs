@@ -3,6 +3,11 @@
 
 use crate::options::RetryAfter;
 
+use std::time::Duration;
+
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
+
 /// Errors raised while constructing a client or preparing a request.
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryClientBuildError {
@@ -307,13 +312,57 @@ impl NotaryClientError {
     }
 }
 
-pub(crate) fn parse_retry_after(raw: Option<&str>) -> Option<RetryAfter> {
+pub(crate) fn parse_retry_after(raw: Option<&str>, date_raw: Option<&str>) -> Option<RetryAfter> {
     let raw = raw?.trim();
     if raw.is_empty() {
         return None;
     }
     if let Ok(seconds) = raw.parse::<u64>() {
-        return Some(RetryAfter::Delta(std::time::Duration::from_secs(seconds)));
+        return Some(RetryAfter::Delta(Duration::from_secs(seconds)));
+    }
+    if let (Some(retry_at), Some(server_at)) = (
+        parse_http_date(raw),
+        date_raw.and_then(|value| parse_http_date(value.trim())),
+    ) {
+        let delta = retry_at - server_at;
+        if delta <= time::Duration::ZERO {
+            return Some(RetryAfter::Delta(Duration::ZERO));
+        }
+        return Some(RetryAfter::Delta(Duration::new(
+            delta.whole_seconds() as u64,
+            delta.subsec_nanoseconds() as u32,
+        )));
     }
     Some(RetryAfter::HttpDate(raw.to_string()))
+}
+
+fn parse_http_date(raw: &str) -> Option<OffsetDateTime> {
+    OffsetDateTime::parse(raw, &Rfc2822).ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_after_http_date_uses_server_date_for_delta() {
+        let retry_after = parse_retry_after(
+            Some("Wed, 31 Dec 2099 00:00:02 GMT"),
+            Some("Wed, 31 Dec 2099 00:00:00 GMT"),
+        );
+
+        assert_eq!(retry_after, Some(RetryAfter::Delta(Duration::from_secs(2))));
+    }
+
+    #[test]
+    fn retry_after_http_date_without_valid_date_preserves_raw_value() {
+        let retry_after = parse_retry_after(Some("Wed, 31 Dec 2099 00:00:02 GMT"), None);
+
+        assert_eq!(
+            retry_after,
+            Some(RetryAfter::HttpDate(
+                "Wed, 31 Dec 2099 00:00:02 GMT".to_string()
+            ))
+        );
+    }
 }

@@ -4,6 +4,7 @@
 use std::fmt;
 
 use registry_notary_core::{BatchEvaluateResponse, ClaimResultView};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
 use crate::options::RetryAfter;
@@ -179,6 +180,8 @@ impl SafeDebug for registry_platform_oid4vci::CredentialResponse {
 pub struct NotaryResponse<T> {
     /// Decoded response body.
     pub body: T,
+    /// HTTP status returned by the server.
+    pub status: StatusCode,
     /// Server `X-Request-Id`, when present.
     pub request_id: Option<String>,
     /// Server `Retry-After`, when present.
@@ -197,6 +200,7 @@ impl<T: SafeDebug> fmt::Debug for NotaryResponse<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NotaryResponse")
             .field("body", &SafeDebugBody(&self.body))
+            .field("status", &self.status)
             .field("request_id", &self.request_id)
             .field("retry_after", &self.retry_after)
             .finish()
@@ -207,6 +211,7 @@ impl<T> NotaryResponse<T> {
     pub(crate) fn map<U>(self, body: U) -> NotaryResponse<U> {
         NotaryResponse {
             body,
+            status: self.status,
             request_id: self.request_id,
             retry_after: self.retry_after,
         }
