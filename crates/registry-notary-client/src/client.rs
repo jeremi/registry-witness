@@ -22,7 +22,7 @@ use crate::error::{
     parse_retry_after, NotaryClientBuildError, NotaryClientError, Oid4vciError, ProblemDetails,
 };
 use crate::headers;
-use crate::options::{RequestOptions, RetryPolicy};
+use crate::options::{RequestOptions, RetryAfter, RetryPolicy};
 use crate::responses::{
     AdminReloadResponse, CredentialIssueResponse, CredentialStatusResponse,
     CredentialStatusUpdateRequest, EvaluateResponse, Evaluation, FormatsResponse, HealthResponse,
@@ -725,6 +725,11 @@ impl RegistryNotaryClient {
             .get(headers::REQUEST_ID)
             .and_then(|value| value.to_str().ok())
             .map(ToOwned::to_owned);
+        let server_date = response
+            .headers()
+            .get(reqwest::header::DATE)
+            .and_then(|value| value.to_str().ok())
+            .map(ToOwned::to_owned);
         let retry_after = parse_retry_after(
             response
                 .headers()
@@ -757,6 +762,7 @@ impl RegistryNotaryClient {
                     problem: Box::new(problem),
                     request_id,
                     retry_after,
+                    server_date,
                 })
             }
             ErrorKind::Oid4vci => {
@@ -771,6 +777,7 @@ impl RegistryNotaryClient {
                     error,
                     request_id,
                     retry_after,
+                    server_date,
                 })
             }
         }
@@ -930,9 +937,13 @@ fn should_retry(policy: &RetryPolicy, error: &NotaryClientError) -> bool {
 }
 
 fn retry_delay(policy: &RetryPolicy, attempt: usize, error: &NotaryClientError) -> Duration {
+    let retry_after_reference_time = error
+        .server_date()
+        .and_then(|server_date| OffsetDateTime::parse(server_date, &Rfc2822).ok())
+        .unwrap_or_else(OffsetDateTime::now_utc);
     if let Some(delay) = error
         .retry_after()
-        .and_then(|retry_after| retry_after_delay(retry_after, OffsetDateTime::now_utc()))
+        .and_then(|retry_after| retry_after_delay(retry_after, retry_after_reference_time))
     {
         return delay.min(policy.max_delay);
     }
@@ -945,10 +956,10 @@ fn retry_delay(policy: &RetryPolicy, attempt: usize, error: &NotaryClientError) 
         .min(policy.max_delay)
 }
 
-fn retry_after_delay(retry_after: &crate::RetryAfter, now: OffsetDateTime) -> Option<Duration> {
+fn retry_after_delay(retry_after: &RetryAfter, now: OffsetDateTime) -> Option<Duration> {
     match retry_after {
-        crate::RetryAfter::Delta(delay) => Some(*delay),
-        crate::RetryAfter::HttpDate(raw) => {
+        RetryAfter::Delta(delay) => Some(*delay),
+        RetryAfter::HttpDate(raw) => {
             let retry_at = OffsetDateTime::parse(raw, &Rfc2822).ok()?;
             if retry_at <= now {
                 Some(Duration::ZERO)

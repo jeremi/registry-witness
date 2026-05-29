@@ -820,6 +820,7 @@ async fn oid4vci_errors_use_oid4vci_envelope() {
                 error,
                 request_id: None,
                 retry_after: None,
+                server_date: None,
             }
             .portable();
             let rendered = serde_json::to_value(portable).expect("portable serializes");
@@ -1052,7 +1053,10 @@ async fn retry_after_http_date_then_claims_handler(
     if call == 1 {
         return (
             StatusCode::SERVICE_UNAVAILABLE,
-            [("retry-after", "Wed, 21 Oct 2015 07:28:00 GMT")],
+            [
+                ("date", "Wed, 21 Oct 2099 07:28:00 GMT"),
+                ("retry-after", "Wed, 21 Oct 2099 07:28:00 GMT"),
+            ],
             Json(json!({
                 "type": "https://docs.registry-notary.dev/problems/source/unavailable",
                 "title": "Source unavailable",
