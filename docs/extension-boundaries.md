@@ -42,7 +42,7 @@ Use this placement rule when deciding where new integration work belongs:
 
 - Fetch data in a source connector when the upstream already exposes a stable
   read API.
-- Transform data in an adapter or sidecar when the upstream needs protocol,
+- Transform data in an adaptor or sidecar when the upstream needs protocol,
   payload, or job orchestration before it can look like a Registry Data API
   read.
 - Express claim policy in Notary claim configuration when the question is about
@@ -61,7 +61,7 @@ integration exposes concrete friction, such as:
 
 - a source read cannot be represented by Registry Data API, DCI, or an existing
   sidecar shape;
-- an adapter needs a reusable conformance test because multiple deployments use
+- an adaptor needs a reusable conformance test because multiple deployments use
   the same external API;
 - a credential profile cannot express a required standards-compatible issuance
   option;
