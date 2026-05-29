@@ -2178,6 +2178,10 @@ async fn direct_credentials_issue_creates_retrievable_status_record() {
         .await;
     issue.assert_status_ok();
     let issue_body: Value = issue.json();
+    assert_eq!(
+        issue_body["credential_profile"],
+        json!("civil_status_sd_jwt")
+    );
     let credential_id = issue_body["credential_id"]
         .as_str()
         .expect("credential id returned");

@@ -40,6 +40,11 @@ pub struct StandaloneRegistryNotaryConfig {
 }
 
 impl StandaloneRegistryNotaryConfig {
+    pub fn with_expanded_presets(mut self) -> Result<Self, EvidenceConfigError> {
+        self.evidence.expand_presets()?;
+        Ok(self)
+    }
+
     pub fn validate(&self) -> Result<(), EvidenceConfigError> {
         if !self.evidence.enabled {
             return Err(EvidenceConfigError::EvidenceDisabled);
@@ -67,10 +72,12 @@ impl StandaloneRegistryNotaryConfig {
         }
         self.evidence.concurrency.validate()?;
         self.credential_status.validate()?;
-        for connection in self.evidence.source_connections.values() {
+        for (connection_id, connection) in &self.evidence.source_connections {
             if connection.max_in_flight < 1 {
                 return Err(EvidenceConfigError::InvalidConcurrency);
             }
+            connection.validate_auth(connection_id)?;
+            connection.effective_dci()?;
         }
         // bulk_mode preconditions are enforced at config load so the runtime
         // never observes a misconfigured combination. rda_in_filter requires
@@ -2434,6 +2441,17 @@ pub enum EvidenceConfigError {
     InvalidCredentialStatusConfig { reason: String },
     #[error("invalid federation config: {reason}")]
     InvalidFederationConfig { reason: String },
+    #[error("source_connection '{connection}': invalid source_auth config: {reason}")]
+    InvalidSourceAuthConfig { connection: String, reason: String },
+    #[error(
+        "source_connection '{connection}': unknown preset '{preset}'; known presets: {known}",
+        known = known.join(", ")
+    )]
+    UnknownPreset {
+        connection: String,
+        preset: String,
+        known: Vec<String>,
+    },
     #[error("claim id must not be empty")]
     InvalidClaim,
     #[error("each standalone source binding must reference a configured source connection")]
@@ -2548,6 +2566,15 @@ pub struct EvidenceConfig {
     pub concurrency: ConcurrencyConfig,
 }
 
+impl EvidenceConfig {
+    pub fn expand_presets(&mut self) -> Result<(), EvidenceConfigError> {
+        for (connection_id, connection) in &mut self.source_connections {
+            connection.expand_preset(connection_id)?;
+        }
+        Ok(())
+    }
+}
+
 fn default_service_id() -> String {
     "registry-notary".to_string()
 }
@@ -2640,6 +2667,8 @@ pub struct SourceBindingConfig {
 #[serde(deny_unknown_fields)]
 pub struct SourceConnectionConfig {
     pub base_url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
     /// Development escape hatch for local demos and tests. Production source
     /// fetches stay on the strict outbound URL policy by default.
     #[serde(default)]
@@ -2649,7 +2678,10 @@ pub struct SourceConnectionConfig {
     /// blocking cloud metadata endpoints. Leave false for production.
     #[serde(default)]
     pub allow_insecure_private_network: bool,
+    #[serde(default)]
     pub token_env: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_auth: Option<SourceAuthConfig>,
     #[serde(default)]
     pub dci: DciSourceConnectionConfig,
     /// Process-global cap on concurrent outbound requests to this connection.
@@ -2676,6 +2708,128 @@ pub struct SourceConnectionConfig {
     /// The actual budget scales with batch size up to this cap.
     #[serde(default = "default_bulk_timeout_max_ms")]
     pub bulk_timeout_max_ms: u64,
+}
+
+impl SourceConnectionConfig {
+    pub fn validate_auth(&self, connection_id: &str) -> Result<(), EvidenceConfigError> {
+        let has_static_token = !self.token_env.trim().is_empty();
+        if has_static_token && self.source_auth.is_some() {
+            return Err(EvidenceConfigError::InvalidSourceAuthConfig {
+                connection: connection_id.to_string(),
+                reason: "token_env and source_auth are mutually exclusive".to_string(),
+            });
+        }
+        if !has_static_token && self.source_auth.is_none() {
+            return Err(EvidenceConfigError::InvalidSourceAuthConfig {
+                connection: connection_id.to_string(),
+                reason: "either token_env or source_auth must be configured".to_string(),
+            });
+        }
+        if let Some(source_auth) = &self.source_auth {
+            source_auth.validate(connection_id)?;
+        }
+        Ok(())
+    }
+
+    pub fn expand_preset(&mut self, connection_id: &str) -> Result<(), EvidenceConfigError> {
+        let Some(preset) = self.preset.as_deref() else {
+            return Ok(());
+        };
+        let dci = match preset {
+            "opencrvs_birth_dci" | "opencrvs_birth_dci@2026-05" => opencrvs_birth_dci(),
+            other => {
+                return Err(EvidenceConfigError::UnknownPreset {
+                    connection: connection_id.to_string(),
+                    preset: other.to_string(),
+                    known: vec![
+                        "opencrvs_birth_dci".to_string(),
+                        "opencrvs_birth_dci@2026-05".to_string(),
+                    ],
+                });
+            }
+        };
+        apply_opencrvs_birth_dci_defaults(&mut self.dci, dci);
+        Ok(())
+    }
+
+    pub fn effective_dci(&self) -> Result<DciSourceConnectionConfig, EvidenceConfigError> {
+        let mut connection = self.clone();
+        connection.expand_preset("<inline>")?;
+        Ok(connection.dci)
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SourceAuthConfig {
+    Oauth2ClientCredentials(Oauth2ClientCredentialsSourceAuthConfig),
+}
+
+impl SourceAuthConfig {
+    fn validate(&self, connection_id: &str) -> Result<(), EvidenceConfigError> {
+        match self {
+            SourceAuthConfig::Oauth2ClientCredentials(config) => config.validate(connection_id),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Oauth2ClientCredentialsSourceAuthConfig {
+    pub token_url: String,
+    pub client_id_env: String,
+    pub client_secret_env: String,
+    #[serde(default = "default_oauth_request_format")]
+    pub request_format: String,
+    #[serde(default)]
+    pub scope: String,
+    #[serde(default = "default_oauth_refresh_skew_seconds")]
+    pub refresh_skew_seconds: u64,
+}
+
+impl Oauth2ClientCredentialsSourceAuthConfig {
+    fn validate(&self, connection_id: &str) -> Result<(), EvidenceConfigError> {
+        if self.token_url.trim().is_empty() {
+            return Err(invalid_source_auth(
+                connection_id,
+                "token_url must not be empty",
+            ));
+        }
+        if self.client_id_env.trim().is_empty() {
+            return Err(invalid_source_auth(
+                connection_id,
+                "client_id_env must not be empty",
+            ));
+        }
+        if self.client_secret_env.trim().is_empty() {
+            return Err(invalid_source_auth(
+                connection_id,
+                "client_secret_env must not be empty",
+            ));
+        }
+        if !matches!(self.request_format.as_str(), "json" | "form") {
+            return Err(invalid_source_auth(
+                connection_id,
+                "request_format must be json or form",
+            ));
+        }
+        Ok(())
+    }
+}
+
+fn default_oauth_request_format() -> String {
+    "form".to_string()
+}
+
+const fn default_oauth_refresh_skew_seconds() -> u64 {
+    60
+}
+
+fn invalid_source_auth(connection: &str, reason: &str) -> EvidenceConfigError {
+    EvidenceConfigError::InvalidSourceAuthConfig {
+        connection: connection.to_string(),
+        reason: reason.to_string(),
+    }
 }
 
 const fn default_max_in_flight() -> usize {
@@ -2788,6 +2942,65 @@ impl Default for DciSourceConnectionConfig {
             field_paths: BTreeMap::new(),
             signature: None,
         }
+    }
+}
+
+fn opencrvs_birth_dci() -> DciSourceConnectionConfig {
+    DciSourceConnectionConfig {
+        search_path: "/registry/sync/search".to_string(),
+        sender_id: "registry-notary".to_string(),
+        receiver_id: None,
+        query_type: "idtype-value".to_string(),
+        records_path: "/message/search_response/0/data/reg_records".to_string(),
+        bulk_records_path: "/data/reg_records".to_string(),
+        max_results: 2,
+        registry_type: Some("ns:org:RegistryType:Civil".to_string()),
+        registry_event_type: Some("birth".to_string()),
+        record_type: None,
+        field_paths: BTreeMap::new(),
+        signature: None,
+    }
+}
+
+fn apply_opencrvs_birth_dci_defaults(
+    target: &mut DciSourceConnectionConfig,
+    preset: DciSourceConnectionConfig,
+) {
+    if target.search_path == default_dci_search_path() {
+        target.search_path = preset.search_path;
+    }
+    if target.sender_id == default_dci_sender_id() {
+        target.sender_id = preset.sender_id;
+    }
+    if target.receiver_id.is_none() {
+        target.receiver_id = preset.receiver_id;
+    }
+    if target.query_type == default_dci_query_type() {
+        target.query_type = preset.query_type;
+    }
+    if target.records_path == default_dci_records_path() {
+        target.records_path = preset.records_path;
+    }
+    if target.bulk_records_path == default_dci_bulk_records_path() {
+        target.bulk_records_path = preset.bulk_records_path;
+    }
+    if target.max_results == default_dci_max_results() {
+        target.max_results = preset.max_results;
+    }
+    if target.registry_type.is_none() {
+        target.registry_type = preset.registry_type;
+    }
+    if target.registry_event_type.is_none() {
+        target.registry_event_type = preset.registry_event_type;
+    }
+    if target.record_type.is_none() {
+        target.record_type = preset.record_type;
+    }
+    if target.field_paths.is_empty() {
+        target.field_paths = preset.field_paths;
+    }
+    if target.signature.is_none() {
+        target.signature = preset.signature;
     }
 }
 
@@ -4068,9 +4281,11 @@ auth:
             "src".to_string(),
             SourceConnectionConfig {
                 base_url: "https://upstream.example".to_string(),
+                preset: None,
                 allow_insecure_localhost: false,
                 allow_insecure_private_network: false,
                 token_env: "UPSTREAM_TOKEN".to_string(),
+                source_auth: None,
                 dci: DciSourceConnectionConfig::default(),
                 max_in_flight: 0,
                 retry_on_5xx: true,
@@ -4110,6 +4325,158 @@ token_env: SRC_TOKEN
         let connection: SourceConnectionConfig =
             serde_norway::from_str(yaml).expect("connection YAML parses");
         assert!(connection.allow_insecure_private_network);
+    }
+
+    #[test]
+    fn source_connection_oauth_auth_deserializes_without_static_token() {
+        let yaml = r#"
+base_url: https://registry.example
+source_auth:
+  type: oauth2_client_credentials
+  token_url: https://registry.example/oauth/token
+  client_id_env: SOURCE_CLIENT_ID
+  client_secret_env: SOURCE_CLIENT_SECRET
+  request_format: json
+  scope: registry.read
+  refresh_skew_seconds: 30
+"#;
+        let connection: SourceConnectionConfig =
+            serde_norway::from_str(yaml).expect("connection YAML parses");
+        assert!(connection.token_env.is_empty());
+        let Some(SourceAuthConfig::Oauth2ClientCredentials(auth)) = connection.source_auth else {
+            panic!("oauth source auth should deserialize");
+        };
+        assert_eq!(auth.request_format, "json");
+        assert_eq!(auth.scope, "registry.read");
+        assert_eq!(auth.refresh_skew_seconds, 30);
+    }
+
+    #[test]
+    fn source_connection_rejects_static_token_and_source_auth_together() {
+        let mut config = minimal_config();
+        config.evidence.source_connections.insert(
+            "src".to_string(),
+            SourceConnectionConfig {
+                base_url: "https://upstream.example".to_string(),
+                preset: None,
+                allow_insecure_localhost: false,
+                allow_insecure_private_network: false,
+                token_env: "SRC_TOKEN".to_string(),
+                source_auth: Some(SourceAuthConfig::Oauth2ClientCredentials(
+                    Oauth2ClientCredentialsSourceAuthConfig {
+                        token_url: "https://upstream.example/oauth/token".to_string(),
+                        client_id_env: "SRC_CLIENT_ID".to_string(),
+                        client_secret_env: "SRC_CLIENT_SECRET".to_string(),
+                        request_format: "json".to_string(),
+                        scope: String::new(),
+                        refresh_skew_seconds: 60,
+                    },
+                )),
+                dci: DciSourceConnectionConfig::default(),
+                max_in_flight: 8,
+                retry_on_5xx: true,
+                bulk_mode: BulkMode::None,
+                bulk_mode_lookup_unique: false,
+                bulk_timeout_max_ms: 30_000,
+            },
+        );
+        let err = config
+            .validate()
+            .expect_err("token_env and source_auth must conflict");
+        assert!(matches!(
+            err,
+            EvidenceConfigError::InvalidSourceAuthConfig { .. }
+        ));
+    }
+
+    #[test]
+    fn source_connection_rejects_unknown_oauth_request_format() {
+        let mut config = minimal_config();
+        config.evidence.source_connections.insert(
+            "src".to_string(),
+            SourceConnectionConfig {
+                base_url: "https://upstream.example".to_string(),
+                preset: None,
+                allow_insecure_localhost: false,
+                allow_insecure_private_network: false,
+                token_env: String::new(),
+                source_auth: Some(SourceAuthConfig::Oauth2ClientCredentials(
+                    Oauth2ClientCredentialsSourceAuthConfig {
+                        token_url: "https://upstream.example/oauth/token".to_string(),
+                        client_id_env: "SRC_CLIENT_ID".to_string(),
+                        client_secret_env: "SRC_CLIENT_SECRET".to_string(),
+                        request_format: "xml".to_string(),
+                        scope: String::new(),
+                        refresh_skew_seconds: 60,
+                    },
+                )),
+                dci: DciSourceConnectionConfig::default(),
+                max_in_flight: 8,
+                retry_on_5xx: true,
+                bulk_mode: BulkMode::None,
+                bulk_mode_lookup_unique: false,
+                bulk_timeout_max_ms: 30_000,
+            },
+        );
+        let err = config
+            .validate()
+            .expect_err("unsupported oauth request_format must fail validation");
+        match err {
+            EvidenceConfigError::InvalidSourceAuthConfig { reason, .. } => {
+                assert!(reason.contains("json or form"));
+            }
+            other => panic!("unexpected error variant: {other}"),
+        }
+    }
+
+    #[test]
+    fn opencrvs_birth_preset_expands_dci_defaults() {
+        let yaml = r#"
+base_url: https://dci-crvs-api.farajaland-integration.opencrvs.dev
+preset: opencrvs_birth_dci
+token_env: SRC_TOKEN
+"#;
+        let mut connection: SourceConnectionConfig =
+            serde_norway::from_str(yaml).expect("connection YAML parses");
+        connection
+            .expand_preset("opencrvs")
+            .expect("known preset expands");
+        assert_eq!(connection.dci.search_path, "/registry/sync/search");
+        assert_eq!(
+            connection.dci.registry_type.as_deref(),
+            Some("ns:org:RegistryType:Civil")
+        );
+        assert_eq!(connection.dci.registry_event_type.as_deref(), Some("birth"));
+        assert_eq!(
+            connection.dci.records_path,
+            "/message/search_response/0/data/reg_records"
+        );
+    }
+
+    #[test]
+    fn unknown_source_preset_is_rejected() {
+        let mut config = minimal_config();
+        config.evidence.source_connections.insert(
+            "src".to_string(),
+            SourceConnectionConfig {
+                base_url: "https://upstream.example".to_string(),
+                preset: Some("missing_preset".to_string()),
+                allow_insecure_localhost: false,
+                allow_insecure_private_network: false,
+                token_env: "SRC_TOKEN".to_string(),
+                source_auth: None,
+                dci: DciSourceConnectionConfig::default(),
+                max_in_flight: 8,
+                retry_on_5xx: true,
+                bulk_mode: BulkMode::None,
+                bulk_mode_lookup_unique: false,
+                bulk_timeout_max_ms: 30_000,
+            },
+        );
+        let err = config
+            .validate()
+            .expect_err("unknown preset must fail validation");
+        assert!(matches!(err, EvidenceConfigError::UnknownPreset { .. }));
     }
 
     // -----------------------------------------------------------------------
@@ -4188,9 +4555,11 @@ bulk_mode: unsupported_mode
             "farmer_registry".to_string(),
             SourceConnectionConfig {
                 base_url: "https://upstream.example".to_string(),
+                preset: None,
                 allow_insecure_localhost: false,
                 allow_insecure_private_network: false,
                 token_env: "SRC_TOKEN".to_string(),
+                source_auth: None,
                 dci: DciSourceConnectionConfig::default(),
                 max_in_flight: 8,
                 retry_on_5xx: true,
@@ -4223,9 +4592,11 @@ bulk_mode: unsupported_mode
             "farmer_registry".to_string(),
             SourceConnectionConfig {
                 base_url: "https://upstream.example".to_string(),
+                preset: None,
                 allow_insecure_localhost: false,
                 allow_insecure_private_network: false,
                 token_env: "SRC_TOKEN".to_string(),
+                source_auth: None,
                 dci: DciSourceConnectionConfig::default(),
                 max_in_flight: 8,
                 retry_on_5xx: true,
@@ -4264,9 +4635,11 @@ bulk_mode: unsupported_mode
             "registry".to_string(),
             SourceConnectionConfig {
                 base_url: "https://upstream.example".to_string(),
+                preset: None,
                 allow_insecure_localhost: false,
                 allow_insecure_private_network: false,
                 token_env: "SRC_TOKEN".to_string(),
+                source_auth: None,
                 dci: DciSourceConnectionConfig::default(),
                 max_in_flight: 8,
                 retry_on_5xx: true,
@@ -4305,9 +4678,11 @@ bulk_mode: unsupported_mode
             "registry".to_string(),
             SourceConnectionConfig {
                 base_url: "https://upstream.example".to_string(),
+                preset: None,
                 allow_insecure_localhost: false,
                 allow_insecure_private_network: false,
                 token_env: "SRC_TOKEN".to_string(),
+                source_auth: None,
                 dci: DciSourceConnectionConfig::default(),
                 max_in_flight: 8,
                 retry_on_5xx: true,
@@ -4331,9 +4706,11 @@ bulk_mode: unsupported_mode
             "farmer_registry".to_string(),
             SourceConnectionConfig {
                 base_url: "https://upstream.example".to_string(),
+                preset: None,
                 allow_insecure_localhost: false,
                 allow_insecure_private_network: false,
                 token_env: "SRC_TOKEN".to_string(),
+                source_auth: None,
                 dci: DciSourceConnectionConfig::default(),
                 max_in_flight: 8,
                 retry_on_5xx: true,

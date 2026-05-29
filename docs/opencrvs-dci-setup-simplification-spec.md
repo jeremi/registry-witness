@@ -1,6 +1,6 @@
 # OpenCRVS DCI Setup Simplification Spec
 
-Status: Draft
+Status: Implementation-aligned documentation update
 
 Owner: Registry Notary
 
@@ -14,7 +14,7 @@ The tutorial currently asks the user to understand and manage:
 
 - a Registry Notary binary or source build
 - OpenCRVS OAuth client credentials
-- a manually fetched OpenCRVS bearer token
+- OpenCRVS OAuth client credentials for source authentication
 - local Registry Notary API key material
 - a derived local API key hash
 - an audit hash secret
@@ -101,12 +101,14 @@ and outbound OpenCRVS credentials:
 That distinction is correct, but the setup does not currently guide the user
 through it.
 
-### Manual Token Refresh
+### Legacy Static Token Refresh
 
-Registry Notary currently reads `source_connections[].token_env` once at
-startup and reuses that bearer token for every source call. OpenCRVS OAuth
-tokens are short-lived, so the current flow requires manual token fetch and
-process restart after expiry.
+Legacy static-token demos can still use `source_connections[].token_env`, but
+the simplified OpenCRVS path uses OAuth `source_auth` with
+`type: oauth2_client_credentials`. Registry Notary fetches source tokens as
+needed, caches them in memory, refreshes before expiry, and retries once after a
+source `401`. The tutorial should not ask operators to fetch or persist an
+`OPENCRVS_DCI_TOKEN`.
 
 ### Verbose OpenCRVS Config
 
@@ -218,7 +220,7 @@ This is a generic source authentication feature. OpenCRVS supplies one concrete
 configuration, but the model must support other HTTP-backed source connections
 that use OAuth2 client credentials.
 
-Proposed config:
+Implemented config shape:
 
 ```yaml
 source_connections:
@@ -281,7 +283,7 @@ selected only when the config uses an OpenCRVS preset or DCI settings.
 Command:
 
 ```bash
-registry-notary doctor --config opencrvs-notary.yaml
+registry-notary doctor --config opencrvs-notary.yaml --env-file .env.local
 ```
 
 Checks:
@@ -302,7 +304,7 @@ Checks:
 - Replay, audit hash, credential status, and issuer-key env vars are present
   when enabled.
 
-Proposed modes:
+Supported modes:
 
 ```bash
 registry-notary doctor --config opencrvs-notary.yaml
@@ -339,15 +341,16 @@ Acceptance criteria:
 - Operators get actionable messages for the known setup failures from the
   tutorial.
 
-### P1: OpenCRVS DCI Preset
+### P1: Generic DCI Presets And The OpenCRVS Birth Preset
 
-Add an OpenCRVS preset that supplies the known DCI defaults for birth-record
-search.
+Use a generic preset mechanism that supplies known source defaults before config
+validation. The OpenCRVS birth preset supplies the known DCI defaults for
+birth-record search.
 
 Presets are a generic extension mechanism. `opencrvs_birth_dci` is the first
 built-in preset, not a one-off branch in runtime logic.
 
-Proposed config:
+Implemented config shape:
 
 ```yaml
 source_connections:
@@ -388,8 +391,8 @@ Acceptance criteria:
 - Users can configure OpenCRVS birth evidence without writing low-level DCI
   fields.
 - Explicit config values can override preset defaults.
-- The expanded config is visible through `doctor --show-expanded-config` or a
-  similar command, with secrets redacted.
+- The expanded config is visible through `registry-notary explain-config
+  --config opencrvs-notary.yaml --env-file .env.local`, with secrets redacted.
 - Tests prove preset defaults match the known OpenCRVS-compatible request shape.
 - Tests prove unknown preset ids fail before startup with a suggested list of
   known presets.
@@ -486,7 +489,7 @@ Recommendation:
 Reduce VC demo setup friction by making demo issuer material explicit and
 optional.
 
-Possible approaches:
+Implemented command paths:
 
 - `registry-notary init opencrvs-dci --demo-issuer` writes a generated issuer
   JWK to `.env.local`.
@@ -512,7 +515,7 @@ Add commands that help users understand generated config.
 Commands:
 
 ```bash
-registry-notary explain-config --config opencrvs-notary.yaml
+registry-notary explain-config --config opencrvs-notary.yaml --env-file .env.local
 registry-notary schema > registry-notary.schema.json
 ```
 
@@ -627,10 +630,10 @@ Acceptance criteria:
 
 ## Documentation Impact
 
-After P0 and P1, the standalone tutorial should shrink to:
+The standalone tutorial now follows this generated quickstart:
 
 1. Install Registry Notary.
-2. Run `registry-notary init opencrvs-dci`.
+2. Run `registry-notary init opencrvs-dci --with-env-file --demo-issuer`.
 3. Put OpenCRVS client id and secret into `.env.local`.
 4. Run `registry-notary doctor --config opencrvs-notary.yaml --env-file .env.local --live`.
 5. Start Registry Notary with `--env-file .env.local`.
@@ -757,7 +760,7 @@ Review checkpoint:
 Parallel work:
 
 - Worker A: implement `opencrvs_birth_dci` preset expansion and
-  `--show-expanded-config`.
+  `registry-notary explain-config`.
 - Worker B: implement `registry-notary init opencrvs-dci` file generation.
 - Worker C: implement `registry-notary hash-api-key` and demo issuer key
   generation commands.
