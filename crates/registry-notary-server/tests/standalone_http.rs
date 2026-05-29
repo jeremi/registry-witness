@@ -2593,6 +2593,67 @@ async fn error_responses_match_rfc_7807_shape() {
 }
 
 #[tokio::test]
+async fn route_family_error_envelopes_match_documented_contract() {
+    set_audit_secret();
+    std::env::set_var("TEST_EVIDENCE_SOURCE_TOKEN", "source-token");
+    std::env::set_var("TEST_SELF_ATTESTATION_ISSUER_JWK", TEST_ISSUER_JWK);
+
+    let idp = MockIdp::start().await;
+    let tmp = TempDir::new().expect("tempdir");
+    let audit_path = tmp.path().join("audit.jsonl");
+    let app = standalone_router(self_attestation_oid4vci_config(
+        "http://127.0.0.1:1",
+        audit_path.to_str().expect("audit path is UTF-8"),
+        &idp.issuer(),
+        &idp.jwks_uri(),
+    ))
+    .expect("standalone router builds");
+    let server = TestServer::builder().http_transport().build(app);
+
+    let oid4vci = server
+        .get("/oid4vci/credential-offer?credential_configuration_id=unknown")
+        .await;
+    oid4vci.assert_status(StatusCode::BAD_REQUEST);
+    let oid4vci_content_type = oid4vci
+        .headers()
+        .get("content-type")
+        .expect("OID4VCI content type")
+        .to_str()
+        .expect("OID4VCI content type is valid");
+    assert!(oid4vci_content_type.starts_with("application/json"));
+    let oid4vci_body: Value = oid4vci.json();
+    assert_eq!(oid4vci_body["error"], json!("invalid_request"));
+    assert!(oid4vci_body["error_description"].is_string());
+    assert!(oid4vci_body.get("type").is_none());
+    assert!(oid4vci_body.get("code").is_none());
+
+    let evidence = server
+        .post("/evidence/render")
+        .json(&json!({
+            "evaluation_id": "eval-1",
+            "format": "application/vnd.registry-notary.claim-result+json"
+        }))
+        .await;
+    evidence.assert_status(StatusCode::UNAUTHORIZED);
+    let evidence_content_type = evidence
+        .headers()
+        .get("content-type")
+        .expect("evidence content type")
+        .to_str()
+        .expect("evidence content type is valid");
+    assert!(evidence_content_type.starts_with("application/problem+json"));
+    let evidence_body: Value = evidence.json();
+    assert_eq!(evidence_body["code"], json!("auth.missing_credential"));
+    assert_eq!(evidence_body["status"], json!(401));
+    assert!(evidence_body["type"]
+        .as_str()
+        .is_some_and(|value| value.starts_with("https://docs.registry-notary.dev/problems/")));
+    assert!(evidence_body.get("error").is_none());
+
+    idp.stop().await;
+}
+
+#[tokio::test]
 async fn cors_csp_corp_headers_present_and_corp_conditional() {
     set_audit_secret();
     std::env::set_var(
