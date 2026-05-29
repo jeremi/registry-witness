@@ -1,5 +1,13 @@
 # Federated Evaluation MVP Spec
 
+## Status
+
+Partial implementation design record. Inbound static-peer delegated evaluation
+is implemented. Outbound Notary connectors, peer-response composition,
+federated credential issuance, dynamic trust chains, and audit checkpoint
+exchange remain outside the current runtime. Practical setup guidance lives in
+[Federated evaluation operator guide](federated-evaluation-operator-guide.md).
+
 ## Purpose
 
 Define the first practical Registry Notary federation slice: one trusted

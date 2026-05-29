@@ -3,6 +3,13 @@
 This guide shows the minimum static-peer setup for the delegated evaluation MVP.
 It is intentionally narrower than the broader federation roadmap.
 
+## Status
+
+Partial. Inbound static-peer delegated evaluation is implemented. Outbound
+Notary connectors, peer-response composition, federated credential issuance,
+dynamic trust chains, and audit checkpoint exchange are not implemented runtime
+features.
+
 ## What This Enables
 
 One trusted Notary can call another trusted Notary:
@@ -162,3 +169,10 @@ Also confirm:
 - source tokens and raw subject identifiers do not appear in audit JSONL;
 - audit write failure prevents a successful signed response;
 - replaying the same request `jti` returns a denial.
+
+## Done Check
+
+An MVP federation deployment is ready when both peers pin each other's keys and
+policy locally, request replay is backed by Redis for active-active serving,
+signed request and response fixtures pass, emergency denylist behavior is
+tested, and audit records contain only redacted peer and subject context.

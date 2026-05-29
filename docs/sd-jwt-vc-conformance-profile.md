@@ -1,5 +1,10 @@
 # Registry Notary SD-JWT VC Conformance Profile
 
+## Status
+
+Current conformance reference. Practical issuance guidance lives in
+[Credential issuance guide](credential-issuance-guide.md).
+
 Registry Notary currently issues one credential format: SD-JWT VC using the
 current digital credential media type.
 

@@ -1,5 +1,11 @@
 # Registry Platform Spec
 
+## Status
+
+Historical design record for the sibling `registry-platform` extraction. This
+is not Registry Notary operator documentation. Keep it only for architecture
+context while Registry Notary depends on the shared platform crates.
+
 ## Purpose
 
 Define a shared crate workspace, `registry-platform`, that hosts the security and operational primitives currently duplicated (or absent) across `registry-relay` and `registry-notary`. The May 2026 security pass landed the same fixes independently in both apps in some places, missed them entirely in others. A shared library forces the question "is this fixed everywhere?" to have a single answer.

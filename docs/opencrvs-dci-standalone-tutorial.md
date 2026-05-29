@@ -4,6 +4,11 @@ This tutorial starts from a generic DCI Registry Notary starter config, then
 adds the OpenCRVS-specific DCI filters in YAML. OpenCRVS is not a built-in
 Registry Notary runtime mode or code preset.
 
+## Status
+
+Lab-supported. This is a demo integration path for an OpenCRVS DCI endpoint.
+It depends on external OpenCRVS test credentials and test data.
+
 ## What You Will Run
 
 You will run Registry Notary locally:
@@ -270,9 +275,26 @@ If OpenCRVS returns HTTP 400, check the DCI block:
 If OpenCRVS returns no records, the redacted sample UIN may not exist in that
 test environment.
 
+## Current Interop Boundaries
+
+- The tested query shape is DCI `idtype-value` with `query.type = UIN`.
+- The tested event filter is `registry_event_type = birth`.
+- The OpenCRVS DCI middleware has accepted unsigned requests in the tested
+  environment. If request signatures become mandatory, Registry Notary needs
+  DCI request signing and a discoverable JWKS for the configured `sender_id`.
+- Death record checks should use a separate DCI source connection or claim with
+  `registry_event_type: death`.
+
 ## Security Notes
 
 - Do not commit `.env.local`.
 - Do not commit OpenCRVS client credentials, bearer tokens, subject UINs, or
   generated issuer private keys.
 - Do not store OpenCRVS access tokens in the config or env file.
+
+## Done Check
+
+The demo is working when `doctor` passes, `doctor --live` can fetch an OAuth
+source token, a known test UIN evaluates through
+`opencrvs-birth-record-exists`, and demo credential issuance returns an
+`application/dc+sd-jwt` response when `--demo-issuer` was used.

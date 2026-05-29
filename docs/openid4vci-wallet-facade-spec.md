@@ -1,5 +1,11 @@
 # OpenID4VCI Wallet Facade Spec
 
+## Status
+
+Implemented narrow-scope design record. Practical runtime guidance lives in
+[Credential issuance guide](credential-issuance-guide.md). This is not a full
+general-purpose OpenID4VCI issuer specification.
+
 ## Goal
 
 Add an optional OpenID4VCI issuer facade for Registry Notary so citizen

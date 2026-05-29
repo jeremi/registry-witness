@@ -1,5 +1,11 @@
 # Citizen Self-Attestation Spec
 
+## Status
+
+Implemented design record. Practical runtime guidance lives in
+[Self-attestation guide](self-attestation-guide.md). Keep this spec for design
+context, threat model, and acceptance rationale.
+
 ## Goal
 
 Add an optional Registry Notary mode that lets an authenticated citizen request

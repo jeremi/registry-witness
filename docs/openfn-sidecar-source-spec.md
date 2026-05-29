@@ -1,5 +1,11 @@
 # Synchronous Adaptor Source Sidecar Spec
 
+## Status
+
+Implemented design record. Practical runtime guidance lives in
+[OpenFn sidecar guide](openfn-sidecar-guide.md). The old spike document was
+removed because this spec and the guide supersede it.
+
 ## Goal
 
 Provide a small synchronous source sidecar that lets Registry Notary evaluate a

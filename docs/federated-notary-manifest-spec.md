@@ -1,5 +1,13 @@
 # Federated Notary Manifest Spec
 
+## Status
+
+Roadmap design record. The current runtime implements only the static-peer
+inbound delegated evaluation slice. Use
+[Federation guide](federation-guide.md) and
+[Federated evaluation MVP spec](federated-evaluation-mvp-spec.md) for current
+runtime boundaries.
+
 For the first implementation slice, see
 [`federated-evaluation-mvp-spec.md`](federated-evaluation-mvp-spec.md). This
 document is the broader protocol and roadmap spec.

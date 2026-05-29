@@ -4,6 +4,12 @@ This catalog describes practical places where Registry Notary can help. It is
 not a protocol spec. It is a product and demo guide for deciding which flows are
 already supported, which are demo-only, and which need more runtime work.
 
+## Status
+
+Maintained product planning and validation document. Use
+[User stories](user-stories.md) for acceptance criteria and test hooks, and use
+this catalog for broader scenario coverage.
+
 The scenarios use five status labels:
 
 | Status | Meaning |
@@ -163,8 +169,8 @@ sequenceDiagram
 
 ### 1. Civil Alive Predicate
 
-Pattern: Local evaluation  
-Status: Supported  
+Pattern: Local evaluation
+Status: Supported
 Priority: High
 
 Story: Bob is reviewing Alice's application and only needs to know whether the
@@ -172,7 +178,7 @@ civil registry still records her as alive. The Civil Notary checks the source
 through the Civil Relay and returns a signed predicate, so Bob gets the answer
 without receiving Alice's full civil record.
 
-Personas: case worker, registry steward, auditor  
+Personas: case worker, registry steward, auditor
 Systems: service portal, civil Notary, civil Relay, civil registry, audit store
 
 ```mermaid
@@ -199,8 +205,8 @@ Missing:
 
 ### 2. Age Or Date-Of-Birth Evidence
 
-Pattern: Local evaluation  
-Status: Supported  
+Pattern: Local evaluation
+Status: Supported
 Priority: High
 
 Story: Alice needs to prove that she meets an age requirement, but she should
@@ -208,7 +214,7 @@ not have to expose more civil data than necessary. Bob asks the Civil Notary
 for a date-of-birth value or an age predicate, and the Notary applies the
 configured disclosure policy before returning the result.
 
-Personas: citizen, case worker, registry steward  
+Personas: citizen, case worker, registry steward
 Systems: service portal, civil Notary, civil Relay, civil registry
 
 ```mermaid
@@ -235,8 +241,8 @@ Missing:
 
 ### 3. Program Enrollment Active
 
-Pattern: Local evaluation  
-Status: Supported  
+Pattern: Local evaluation
+Status: Supported
 Priority: High
 
 Story: Bob wants to confirm that Alice is actively enrolled in a social
@@ -244,7 +250,7 @@ program before approving a linked benefit. The Social Protection Notary checks
 the program enrollment record and returns only the active-beneficiary evidence
 that the workflow needs.
 
-Personas: case worker, program administrator, registry steward  
+Personas: case worker, program administrator, registry steward
 Systems: social protection Notary, social protection Relay, source registry
 
 ```mermaid
@@ -270,8 +276,8 @@ Missing:
 
 ### 4. Health Facility Service Available
 
-Pattern: Local evaluation  
-Status: Supported  
+Pattern: Local evaluation
+Status: Supported
 Priority: Medium
 
 Story: Bob is processing a service request that depends on whether a nearby
@@ -279,7 +285,7 @@ facility is licensed and ready to provide care. The Health Notary evaluates
 the facility facts behind the Health Relay and gives Bob a service-availability
 predicate instead of raw facility rows.
 
-Personas: case worker, program administrator, registry steward  
+Personas: case worker, program administrator, registry steward
 Systems: health Notary, health Relay, health facility registry
 
 ```mermaid
@@ -305,8 +311,8 @@ Missing:
 
 ### 5. Agriculture Voucher Eligibility
 
-Pattern: Local evaluation  
-Status: Supported  
+Pattern: Local evaluation
+Status: Supported
 Priority: High
 
 Story: Alice is a farmer applying for a climate-smart input voucher. The
@@ -314,7 +320,7 @@ Agriculture Notary checks the farmer, parcel, and redemption facts needed for
 Erin's program rules, then returns an eligibility result and reason without
 handing the portal all of Alice's registry records.
 
-Personas: farmer, case worker, agriculture program administrator  
+Personas: farmer, case worker, agriculture program administrator
 Systems: agriculture Notary, agriculture Relay, farmer and parcel registries
 
 ```mermaid
@@ -341,15 +347,15 @@ Missing:
 
 ### 6. Livestock Movement Permit Eligibility
 
-Pattern: Local evaluation  
-Status: Supported  
+Pattern: Local evaluation
+Status: Supported
 Priority: Medium
 
 Story: Alice needs permission to move livestock between districts. The
 Agriculture Notary evaluates herd, vaccination, and quarantine facts and gives
 Bob a permit predicate plus a reason code when the movement should be denied.
 
-Personas: farmer, case worker, veterinary registry steward  
+Personas: farmer, case worker, veterinary registry steward
 Systems: agriculture Notary, agriculture Relay, livestock registry
 
 ```mermaid
@@ -375,8 +381,8 @@ Missing:
 
 ### 7. Benefits Agency Asks Civil Notary For Alive Predicate
 
-Pattern: Delegated evaluation  
-Status: Partial  
+Pattern: Delegated evaluation
+Status: Partial
 Priority: High
 
 Story: Bob works for the benefits agency, while Carol's civil registry owns the
@@ -384,7 +390,7 @@ source facts. Instead of giving Bob direct read access to the civil registry,
 the benefits actor sends a signed request to Carol's Civil Notary and receives
 a signed alive predicate back.
 
-Personas: case worker, registry steward, auditor  
+Personas: case worker, registry steward, auditor
 Systems: benefits portal or peer Notary, civil Notary, civil Relay
 
 ```mermaid
@@ -412,8 +418,8 @@ Missing:
 
 ### 8. Benefits Agency Asks Social Notary For Active Beneficiary
 
-Pattern: Delegated evaluation  
-Status: Partial  
+Pattern: Delegated evaluation
+Status: Partial
 Priority: High
 
 Story: Bob needs to know whether Alice is an active beneficiary in another
@@ -421,7 +427,7 @@ agency's program. The benefits actor asks the Social Protection Notary for a
 signed active-beneficiary predicate under a specific purpose, keeping the
 social registry steward in control of the source data.
 
-Personas: case worker, program administrator, auditor  
+Personas: case worker, program administrator, auditor
 Systems: benefits portal or peer Notary, social protection Notary, social Relay
 
 ```mermaid
@@ -449,8 +455,8 @@ Missing:
 
 ### 9. Health-Linked Child Support Across Three Authorities
 
-Pattern: Outbound composition  
-Status: Planned  
+Pattern: Outbound composition
+Status: Planned
 Priority: High
 
 Story: Alice applies for health-linked child support, and no single agency owns
@@ -458,7 +464,7 @@ all the facts. A Shared Eligibility Notary would ask Civil, Social, and Health
 Notaries for signed predicates, verify them, and compose one final eligibility
 claim for Bob to review.
 
-Personas: citizen, case worker, registry stewards, auditor  
+Personas: citizen, case worker, registry stewards, auditor
 Systems: shared eligibility Notary, civil Notary, social Notary, health Notary
 
 ```mermaid
@@ -490,8 +496,8 @@ Missing:
 
 ### 10. Municipality Verifies Residency With A National Steward
 
-Pattern: Delegated evaluation  
-Status: Partial  
+Pattern: Delegated evaluation
+Status: Partial
 Priority: Medium
 
 Story: Bob works at a municipality and needs to confirm Alice's residency
@@ -499,7 +505,7 @@ without receiving a national population record. The municipal service asks the
 national Notary for a residency predicate, and Carol's national registry keeps
 control of what can be answered and audited.
 
-Personas: citizen, municipal case worker, national registry steward  
+Personas: citizen, municipal case worker, national registry steward
 Systems: municipal portal, national civil or population Notary
 
 ```mermaid
@@ -525,8 +531,8 @@ Missing:
 
 ### 11. Citizen Presents Civil-Status Proof To Benefits Service
 
-Pattern: User-presented proof  
-Status: Planned  
+Pattern: User-presented proof
+Status: Planned
 Priority: High
 
 Story: Alice already has a civil-status credential in her wallet and wants to
@@ -534,7 +540,7 @@ share it with a benefits service. Bob's Benefits Notary verifies the
 presentation, holder binding, audience, freshness, and status policy before
 using the disclosed claims as evidence.
 
-Personas: citizen, case worker, registry steward  
+Personas: citizen, case worker, registry steward
 Systems: holder wallet, benefits portal, benefits Notary, civil Notary
 
 ```mermaid
@@ -564,8 +570,8 @@ Missing:
 
 ### 12. Farmer Presents Landholding Or Registration Proof
 
-Pattern: User-presented proof  
-Status: Planned  
+Pattern: User-presented proof
+Status: Planned
 Priority: Medium
 
 Story: Alice has a farmer-registration or landholding credential from a
@@ -573,7 +579,7 @@ trusted authority. Rather than asking a service portal to read the underlying
 farm registry, Alice presents the proof and the Agriculture Notary maps the
 verified claims into the voucher eligibility workflow.
 
-Personas: farmer, agriculture case worker, registry steward  
+Personas: farmer, agriculture case worker, registry steward
 Systems: farmer wallet, agriculture portal, agriculture Notary
 
 ```mermaid
@@ -600,8 +606,8 @@ Missing:
 
 ### 13. Health Worker Presents Professional Credential
 
-Pattern: User-presented proof  
-Status: Planned  
+Pattern: User-presented proof
+Status: Planned
 Priority: Medium
 
 Story: Alice is a health worker whose professional status affects whether a
@@ -609,7 +615,7 @@ facility can satisfy a service rule. She presents her professional credential,
 and the consuming Notary verifies issuer trust and holder binding before using
 that status in the local decision.
 
-Personas: health worker, program administrator, auditor  
+Personas: health worker, program administrator, auditor
 Systems: holder wallet, service portal, benefits or health Notary
 
 ```mermaid
@@ -637,8 +643,8 @@ Missing:
 
 ### 14. Parent Or Guardian Requests A Service For A Child Or Dependent
 
-Pattern: Representation plus proof  
-Status: Planned  
+Pattern: Representation plus proof
+Status: Planned
 Priority: High
 
 Story: Alice is applying for a child benefit on behalf of Charlie. Bob needs
@@ -646,7 +652,7 @@ evidence about Charlie, but Alice is the person interacting with the portal, so
 the Benefits Notary must verify both Charlie's eligibility evidence and
 Alice's authority to act for Charlie.
 
-Personas: citizen or resident, case worker, registry steward, auditor  
+Personas: citizen or resident, case worker, registry steward, auditor
 Systems: holder wallet, service portal, benefits Notary, civil Notary, social Notary
 
 ```mermaid
@@ -685,8 +691,8 @@ Missing:
 
 ### 15. Household Or Group Representative Requests A Service
 
-Pattern: Representation plus proof  
-Status: Planned  
+Pattern: Representation plus proof
+Status: Planned
 Priority: High
 
 Story: Alice is the registered representative for the Rivera household, a farm
@@ -694,7 +700,7 @@ group, or a cooperative. Bob needs to evaluate a service for that collective
 subject, so the Notary must verify Alice's authority to act for the household
 or group before it evaluates household, member, parcel, or program facts.
 
-Personas: citizen or resident, case worker, program administrator, auditor  
+Personas: citizen or resident, case worker, program administrator, auditor
 Systems: holder wallet, service portal, benefits Notary, social Notary, agriculture Notary
 
 ```mermaid
@@ -734,15 +740,15 @@ Missing:
 
 ### 16. Civil Notary Issues Date-Of-Birth Or Alive Credential
 
-Pattern: Credential issuance  
-Status: Supported  
+Pattern: Credential issuance
+Status: Supported
 Priority: High
 
 Story: Alice wants a reusable civil credential so she does not need a fresh
 registry lookup for every service. The Civil Notary evaluates the configured
 claim, verifies Alice's holder proof, and issues a holder-bound SD-JWT VC.
 
-Personas: citizen, registry steward, wallet operator  
+Personas: citizen, registry steward, wallet operator
 Systems: holder wallet, civil Notary, civil Relay
 
 ```mermaid
@@ -769,8 +775,8 @@ Missing:
 
 ### 17. Agriculture Notary Issues Voucher Eligibility Credential
 
-Pattern: Credential issuance  
-Status: Supported  
+Pattern: Credential issuance
+Status: Supported
 Priority: High
 
 Story: Alice qualifies for an agriculture voucher and wants portable proof of
@@ -778,7 +784,7 @@ that result. After the Agriculture Notary evaluates the voucher rules, it can
 issue a holder-bound credential that Alice can present to a payment or voucher
 system.
 
-Personas: farmer, program administrator, wallet operator  
+Personas: farmer, program administrator, wallet operator
 Systems: holder wallet, agriculture Notary, agriculture Relay
 
 ```mermaid
@@ -804,8 +810,8 @@ Missing:
 
 ### 18. Shared Eligibility Notary Issues Combined-Support Credential
 
-Pattern: Credential issuance plus composition  
-Status: Partial  
+Pattern: Credential issuance plus composition
+Status: Partial
 Priority: High
 
 Story: Alice's combined-support eligibility depends on facts held by multiple
@@ -813,7 +819,7 @@ authorities. The future Shared Eligibility Notary would verify peer-signed
 predicates, compose a final claim, and issue Alice a credential that points
 back to the remote evidence decisions without exposing raw source data.
 
-Personas: citizen, case worker, auditor  
+Personas: citizen, case worker, auditor
 Systems: shared eligibility Notary, peer Notaries, holder wallet
 
 ```mermaid
@@ -843,8 +849,8 @@ Missing:
 
 ### 19. Service Helps Holder Obtain Credential From Remote Notary
 
-Pattern: Federated credential issuance  
-Status: Planned  
+Pattern: Federated credential issuance
+Status: Planned
 Priority: Medium
 
 Story: Alice needs a credential from Carol's issuing Notary while starting
@@ -852,7 +858,7 @@ from Bob's service journey. Bob can help Alice discover the issuer or relay
 bytes transparently, but Carol's Notary must still own the nonce, audience,
 holder-proof verification, and issued credential.
 
-Personas: citizen, wallet operator, registry steward  
+Personas: citizen, wallet operator, registry steward
 Systems: holder wallet, consuming Notary, issuing Notary
 
 ```mermaid
@@ -880,8 +886,8 @@ Missing:
 
 ### 20. Replay And Emergency Peer Or Key Denial
 
-Pattern: Governance  
-Status: Supported  
+Pattern: Governance
+Status: Supported
 Priority: High
 
 Story: Dave sees suspicious activity from a peer key and needs the serving
@@ -889,7 +895,7 @@ Notary to fail closed immediately. Replay protection blocks reused requests,
 and the emergency denylist lets the operator reject a compromised node or key
 while the incident is investigated.
 
-Personas: registry steward, auditor, security operator  
+Personas: registry steward, auditor, security operator
 Systems: serving Notary, peer Notary, audit store
 
 ```mermaid
@@ -921,8 +927,8 @@ Missing:
 
 ### 21. Auditor Verifies Minimized Decision Evidence
 
-Pattern: Governance  
-Status: Partial  
+Pattern: Governance
+Status: Partial
 Priority: High
 
 Story: Dave reviews Alice's benefit decision months later and wants confidence
@@ -930,7 +936,7 @@ that Bob used minimized evidence. The signed predicate result and redacted
 audit event show which profile and purpose were used without disclosing raw
 registry rows.
 
-Personas: auditor, registry steward, program administrator  
+Personas: auditor, registry steward, program administrator
 Systems: service portal, Notary, audit store
 
 ```mermaid
@@ -960,15 +966,15 @@ Missing:
 
 ### 22. Peer Audit Checkpoint Monitoring
 
-Pattern: Governance  
-Status: Planned  
+Pattern: Governance
+Status: Planned
 Priority: Medium
 
 Story: Dave monitors whether Carol's Notary audit trail is continuous over
 time. Signed checkpoints let Dave detect root or sequence regressions without
 asking Carol to share every underlying audit event.
 
-Personas: auditor, security operator, registry steward  
+Personas: auditor, security operator, registry steward
 Systems: publishing Notary, monitoring Notary, audit store
 
 ```mermaid

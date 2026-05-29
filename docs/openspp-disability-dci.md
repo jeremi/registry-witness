@@ -3,6 +3,11 @@
 This note documents the local Registry Notary demo config for using the
 OpenSPP Disability Registry DCI API as an evidence source.
 
+## Status
+
+Lab-supported. This document records the tested OpenSPP Disability DCI demo
+shape and the current upstream interoperability boundaries.
+
 ## Scope
 
 The demo config is:
@@ -75,3 +80,11 @@ OpenID4VCI credential endpoint.
   validation error.
 - `/.well-known/jwks.json` returned an empty key set during testing, so
   response-signature verification could not be exercised.
+
+## Done Check
+
+The demo is working when the service starts with
+`demo/config/openspp-disability-registry-notary.yaml`, a known test national id
+can evaluate the five disability claims, demo credential issuance works for the
+configured profile, and no OpenSPP bearer token or subject id appears in logs or
+audit output.

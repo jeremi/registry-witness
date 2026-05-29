@@ -1,6 +1,10 @@
 # OpenCRVS DCI Setup Simplification Spec
 
-Status: Superseded by the generic `init dci` approach
+## Status
+
+Superseded design record. The current operator path is the generic
+`registry-notary init dci` workflow documented in
+[OpenCRVS DCI standalone tutorial](opencrvs-dci-standalone-tutorial.md).
 
 Decision update: Registry Notary no longer carries an OpenCRVS-specific
 initializer or built-in OpenCRVS DCI preset. The implemented direction is a

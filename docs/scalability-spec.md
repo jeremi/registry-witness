@@ -1,5 +1,14 @@
 # Registry Notary Scalability Spec
 
+## Status
+
+Partially implemented design record. Current runtime docs for concurrency,
+batch memoization, source politeness, and performance harness usage live in
+[Claim authoring guide](claim-authoring-guide.md),
+[Source connectors guide](source-connectors-guide.md),
+[Deployment guide](deployment-guide.md), and
+[Observability guide](observability-guide.md).
+
 ## Purpose
 
 Define the work needed to make `registry-notary` serve both synchronous credential issuance and batch backfills against third-party registries without the current single-threaded fan-out becoming the bottleneck. The fan-out diagnosis is provisional, to be confirmed by the Stage 0 load harness before Stage 1 ships.

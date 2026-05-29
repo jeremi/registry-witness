@@ -32,8 +32,6 @@ not import or link Registry Relay code.
 - [`docs/openspp-disability-dci.md`](docs/openspp-disability-dci.md):
   OpenSPP Disability Registry DCI demo backend setup, known interop boundaries,
   and demo SD-JWT VC caveats.
-- [`docs/opencrvs-dci.md`](docs/opencrvs-dci.md):
-  OpenCRVS DCI demo setup notes and current interop boundaries.
 - [`docs/opencrvs-dci-standalone-tutorial.md`](docs/opencrvs-dci-standalone-tutorial.md):
   standalone quickstart for `init dci`, the explicit OpenCRVS DCI config edits,
   `doctor`, `explain-config`, `--env-file`, source OAuth, and demo SD-JWT VC
