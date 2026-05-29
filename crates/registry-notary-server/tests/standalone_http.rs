@@ -811,6 +811,13 @@ async fn healthz_ready_opaque_counters_in_503_body() {
     let ready = server.get("/ready").await;
     ready.assert_status(StatusCode::SERVICE_UNAVAILABLE);
     let ready_body: Value = ready.json();
+    let openapi = registry_notary_server::openapi_document();
+    let openapi_body = serde_json::to_value(openapi).expect("openapi serializes");
+    assert_eq!(
+        ready_body,
+        openapi_body["paths"]["/ready"]["get"]["responses"]["503"]["content"]["application/json"]
+            ["example"]
+    );
     assert_eq!(ready_body["status"], json!("not_ready"));
     assert_eq!(ready_body["checks"]["total"], json!(1));
     assert_eq!(ready_body["checks"]["ok"], json!(0));
