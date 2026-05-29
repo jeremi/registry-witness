@@ -1345,14 +1345,13 @@ fn add_runtime_problem_responses(
     }
 }
 
-fn add_response_header(
-    document: &mut Value,
+fn response_mut<'a>(
+    document: &'a mut Value,
     path: &str,
     method: &str,
     status: &str,
-    header_name: &str,
-) {
-    let Some(response) = document
+) -> Option<&'a mut serde_json::Map<String, Value>> {
+    document
         .get_mut("paths")
         .and_then(Value::as_object_mut)
         .and_then(|paths| paths.get_mut(path))
@@ -1363,7 +1362,16 @@ fn add_response_header(
         .and_then(Value::as_object_mut)
         .and_then(|responses| responses.get_mut(status))
         .and_then(Value::as_object_mut)
-    else {
+}
+
+fn add_response_header(
+    document: &mut Value,
+    path: &str,
+    method: &str,
+    status: &str,
+    header_name: &str,
+) {
+    let Some(response) = response_mut(document, path, method, status) else {
         return;
     };
 
@@ -1375,18 +1383,7 @@ fn add_response_header(
 }
 
 fn add_cache_control_header(document: &mut Value, path: &str, method: &str, status: &str) {
-    let Some(response) = document
-        .get_mut("paths")
-        .and_then(Value::as_object_mut)
-        .and_then(|paths| paths.get_mut(path))
-        .and_then(Value::as_object_mut)
-        .and_then(|path_item| path_item.get_mut(method))
-        .and_then(Value::as_object_mut)
-        .and_then(|operation| operation.get_mut("responses"))
-        .and_then(Value::as_object_mut)
-        .and_then(|responses| responses.get_mut(status))
-        .and_then(Value::as_object_mut)
-    else {
+    let Some(response) = response_mut(document, path, method, status) else {
         return;
     };
 
@@ -1415,18 +1412,7 @@ fn set_response_example(
     content_type: &str,
     example: Value,
 ) {
-    let Some(response) = document
-        .get_mut("paths")
-        .and_then(Value::as_object_mut)
-        .and_then(|paths| paths.get_mut(path))
-        .and_then(Value::as_object_mut)
-        .and_then(|path_item| path_item.get_mut(method))
-        .and_then(Value::as_object_mut)
-        .and_then(|operation| operation.get_mut("responses"))
-        .and_then(Value::as_object_mut)
-        .and_then(|responses| responses.get_mut(status))
-        .and_then(Value::as_object_mut)
-    else {
+    let Some(response) = response_mut(document, path, method, status) else {
         return;
     };
 

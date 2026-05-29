@@ -1070,14 +1070,14 @@ async fn issuer_jwks(
         Err(error) => return evidence_error_response(error),
     };
     match state.issuers.public_jwks(evidence) {
-        Ok(keys) => {
-            let mut response = Json(json!({ "keys": keys })).into_response();
-            response.headers_mut().insert(
+        Ok(keys) => (
+            [(
                 header::CACHE_CONTROL,
                 HeaderValue::from_static(JWKS_CACHE_CONTROL),
-            );
-            response
-        }
+            )],
+            Json(json!({ "keys": keys })),
+        )
+            .into_response(),
         Err(error) => evidence_error_response(error),
     }
 }
