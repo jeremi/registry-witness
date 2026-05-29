@@ -392,7 +392,7 @@ fn parse_env_file(raw: &str) -> Result<Vec<(String, String)>, EnvFileError> {
 
 fn parse_env_value(value: &str, line: usize) -> Result<String, EnvFileError> {
     if let Some(rest) = value.strip_prefix('"') {
-        let Some(end) = rest.rfind('"') else {
+        let Some(end) = closing_quote_index(rest, '"', true) else {
             return Err(env_file_error(line, "unterminated double-quoted value"));
         };
         if !rest[end + 1..].trim().is_empty() && !rest[end + 1..].trim().starts_with('#') {
@@ -404,7 +404,7 @@ fn parse_env_value(value: &str, line: usize) -> Result<String, EnvFileError> {
             .replace("\\\\", "\\"));
     }
     if let Some(rest) = value.strip_prefix('\'') {
-        let Some(end) = rest.rfind('\'') else {
+        let Some(end) = closing_quote_index(rest, '\'', false) else {
             return Err(env_file_error(line, "unterminated single-quoted value"));
         };
         if !rest[end + 1..].trim().is_empty() && !rest[end + 1..].trim().starts_with('#') {
@@ -418,6 +418,20 @@ fn parse_env_value(value: &str, line: usize) -> Result<String, EnvFileError> {
         .unwrap_or(value)
         .trim()
         .to_string())
+}
+
+fn closing_quote_index(rest: &str, quote: char, allow_escape: bool) -> Option<usize> {
+    let mut chars = rest.char_indices();
+    while let Some((idx, ch)) = chars.next() {
+        if allow_escape && ch == '\\' {
+            let _ = chars.next();
+            continue;
+        }
+        if ch == quote {
+            return Some(idx);
+        }
+    }
+    None
 }
 
 fn valid_env_key(key: &str) -> bool {
@@ -1673,6 +1687,26 @@ CLIENT_SECRET='secret value'
                 ("API_HASH".to_string(), "sha256:abc".to_string()),
                 ("CLIENT_ID".to_string(), "client value".to_string()),
                 ("CLIENT_SECRET".to_string(), "secret value".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn env_file_ignores_quotes_inside_trailing_comments() {
+        let parsed = parse_env_file(
+            r#"
+DOUBLE="client value" # comment with "quote"
+SINGLE='secret value' # comment with 'quote'
+ESCAPED="client \"quoted\" value" # comment with "quote"
+"#,
+        )
+        .expect("env file parses");
+        assert_eq!(
+            parsed,
+            vec![
+                ("DOUBLE".to_string(), "client value".to_string()),
+                ("SINGLE".to_string(), "secret value".to_string()),
+                ("ESCAPED".to_string(), "client \"quoted\" value".to_string()),
             ]
         );
     }

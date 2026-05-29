@@ -475,19 +475,56 @@ impl Oauth2ClientCredentialsRuntime {
             "form" => request.form(&params),
             _ => return Err(EvidenceError::SourceUnavailable),
         };
-        let response = request
-            .send()
-            .await
-            .map_err(|_| EvidenceError::SourceUnavailable)?;
+        let response = request.send().await.map_err(|error| {
+            tracing::error!(
+                target: "registry_notary_server::outbound",
+                scheme = self.token_url.scheme(),
+                host = self.token_url.host_str().unwrap_or("<missing>"),
+                path = self.token_url.path(),
+                error = %error,
+                "source OAuth token request failed",
+            );
+            EvidenceError::SourceUnavailable
+        })?;
         if !response.status().is_success() {
+            let status = response.status();
+            tracing::error!(
+                target: "registry_notary_server::outbound",
+                scheme = self.token_url.scheme(),
+                host = self.token_url.host_str().unwrap_or("<missing>"),
+                path = self.token_url.path(),
+                status = %status,
+                "source OAuth token endpoint returned error status",
+            );
             return Err(EvidenceError::SourceUnavailable);
         }
-        let body = read_source_json(response).await?;
+        let body = match read_source_json(response).await {
+            Ok(body) => body,
+            Err(error) => {
+                tracing::error!(
+                    target: "registry_notary_server::outbound",
+                    scheme = self.token_url.scheme(),
+                    host = self.token_url.host_str().unwrap_or("<missing>"),
+                    path = self.token_url.path(),
+                    "source OAuth token response could not be parsed",
+                );
+                return Err(error);
+            }
+        };
         let access_token = body
             .get("access_token")
             .and_then(Value::as_str)
             .filter(|token| !token.is_empty())
-            .ok_or(EvidenceError::SourceUnavailable)?
+            .ok_or_else(|| {
+                tracing::error!(
+                    target: "registry_notary_server::outbound",
+                    scheme = self.token_url.scheme(),
+                    host = self.token_url.host_str().unwrap_or("<missing>"),
+                    path = self.token_url.path(),
+                    "source OAuth token response was missing access_token",
+                );
+                EvidenceError::SourceUnavailable
+            })?
             .to_string();
         let expires_in = body
             .get("expires_in")
