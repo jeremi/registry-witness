@@ -556,6 +556,19 @@ fn audit_records(path: &std::path::Path) -> Vec<Value> {
         .collect()
 }
 
+fn assert_public_diagnostic_is_redacted(body: &Value, sensitive_values: &[&str]) {
+    let serialized = serde_json::to_string(body).expect("diagnostic response serializes");
+    assert!(body["code"].as_str().is_some());
+    assert!(body["status"].as_u64().is_some());
+    assert!(body["title"].as_str().is_some());
+    for sensitive in sensitive_values {
+        assert!(
+            !serialized.contains(sensitive),
+            "public diagnostic leaked sensitive value {sensitive}: {serialized}"
+        );
+    }
+}
+
 fn self_attestation_oidc_config(
     base_url: &str,
     audit_path: &str,
@@ -3067,6 +3080,86 @@ async fn route_family_error_envelopes_match_documented_contract() {
     assert!(evidence_body.get("error").is_none());
 
     idp.stop().await;
+}
+
+#[tokio::test]
+async fn public_diagnostic_codes_and_audit_errors_stay_redacted() {
+    set_audit_secret();
+    std::env::set_var(
+        "TEST_EVIDENCE_API_KEY_HASH",
+        "sha256:a00cf33cd46d9ef96c1eff33df1c9cca20b1a02468cd78ec6a4b2887d1640b51",
+    );
+    std::env::set_var("TEST_EVIDENCE_SOURCE_TOKEN", "source-token");
+
+    let upstream = TestServer::builder()
+        .http_transport()
+        .build(Router::new().route("/datasets/farmer_registry/farmer", get(registry_data_api)));
+    let base_url = upstream
+        .server_address()
+        .expect("HTTP transport exposes upstream address")
+        .to_string();
+    let tmp = TempDir::new().expect("tempdir");
+    let audit_path = tmp.path().join("audit.jsonl");
+    let app = standalone_router(registry_data_api_config(
+        base_url.trim_end_matches('/'),
+        audit_path.to_str().expect("audit path is UTF-8"),
+    ))
+    .expect("standalone router builds");
+    let server = TestServer::builder().http_transport().build(app);
+    let sensitive_values = [
+        "api-token",
+        "source-token",
+        "person-secret-missing-private-fixture-value",
+        "private-fixture-value",
+    ];
+
+    let missing_credential = server.get("/claims").await;
+    missing_credential.assert_status(StatusCode::UNAUTHORIZED);
+    let missing_credential_body: Value = missing_credential.json();
+    assert_eq!(
+        missing_credential_body["code"],
+        json!("auth.missing_credential")
+    );
+    assert_public_diagnostic_is_redacted(&missing_credential_body, &sensitive_values);
+
+    let missing_purpose = server
+        .post("/claims/evaluate")
+        .add_header("x-api-key", "api-token")
+        .json(&json!({
+            "subject": { "id": "person-secret-missing-private-fixture-value" },
+            "claims": ["farmed-land-size"],
+            "disclosure": "value"
+        }))
+        .await;
+    missing_purpose.assert_status(StatusCode::BAD_REQUEST);
+    let missing_purpose_body: Value = missing_purpose.json();
+    assert_eq!(missing_purpose_body["code"], json!("auth.purpose_required"));
+    assert_public_diagnostic_is_redacted(&missing_purpose_body, &sensitive_values);
+
+    let source_not_found = server
+        .post("/claims/evaluate")
+        .add_header("x-api-key", "api-token")
+        .add_header("data-purpose", "https://purpose.example.test/eligibility")
+        .json(&json!({
+            "subject": { "id": "person-secret-missing-private-fixture-value" },
+            "claims": ["farmed-land-size"],
+            "disclosure": "value"
+        }))
+        .await;
+    source_not_found.assert_status(StatusCode::NOT_FOUND);
+    let source_not_found_body: Value = source_not_found.json();
+    assert_eq!(source_not_found_body["code"], json!("source.not_found"));
+    assert_public_diagnostic_is_redacted(&source_not_found_body, &sensitive_values);
+
+    let audit = std::fs::read_to_string(&audit_path).expect("audit was written");
+    assert!(audit.contains("\"error_code\":\"auth.purpose_required\""));
+    assert!(audit.contains("\"error_code\":\"source.not_found\""));
+    for sensitive in sensitive_values {
+        assert!(
+            !audit.contains(sensitive),
+            "audit diagnostic leaked sensitive value {sensitive}: {audit}"
+        );
+    }
 }
 
 #[tokio::test]

@@ -190,6 +190,8 @@ Error dispatch is route-family based. Clients must not choose the parser from
 Problem Details responses are intentionally generic where details could reveal
 source existence, citizen identifiers, holder material, or policy internals.
 More specific denial context belongs in redacted audit.
+See [Diagnostics guide](diagnostics-guide.md) for the public `code` contract,
+audit-only diagnostics, and redaction boundary.
 
 ## Integration Procedure
 
