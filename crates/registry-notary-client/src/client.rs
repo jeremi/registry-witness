@@ -13,6 +13,8 @@ use reqwest::{Method, StatusCode, Url};
 use secrecy::SecretString;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use time::format_description::well_known::Rfc2822;
+use time::OffsetDateTime;
 use tokio::sync::Mutex;
 
 use crate::auth::{Auth, AuthHeader, AuthProvider};
@@ -928,8 +930,11 @@ fn should_retry(policy: &RetryPolicy, error: &NotaryClientError) -> bool {
 }
 
 fn retry_delay(policy: &RetryPolicy, attempt: usize, error: &NotaryClientError) -> Duration {
-    if let Some(crate::RetryAfter::Delta(delay)) = error.retry_after() {
-        return (*delay).min(policy.max_delay);
+    if let Some(delay) = error
+        .retry_after()
+        .and_then(|retry_after| retry_after_delay(retry_after, OffsetDateTime::now_utc()))
+    {
+        return delay.min(policy.max_delay);
     }
     let multiplier = 1_u32
         .checked_shl(attempt.saturating_sub(1) as u32)
@@ -938,6 +943,20 @@ fn retry_delay(policy: &RetryPolicy, attempt: usize, error: &NotaryClientError) 
         .base_delay
         .saturating_mul(multiplier)
         .min(policy.max_delay)
+}
+
+fn retry_after_delay(retry_after: &crate::RetryAfter, now: OffsetDateTime) -> Option<Duration> {
+    match retry_after {
+        crate::RetryAfter::Delta(delay) => Some(*delay),
+        crate::RetryAfter::HttpDate(raw) => {
+            let retry_at = OffsetDateTime::parse(raw, &Rfc2822).ok()?;
+            if retry_at <= now {
+                Some(Duration::ZERO)
+            } else {
+                (retry_at - now).try_into().ok()
+            }
+        }
+    }
 }
 
 fn build_http_client(timeout: Option<Duration>, user_agent: Option<String>) -> reqwest::Client {
