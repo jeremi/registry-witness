@@ -3,29 +3,47 @@
 
 use crate::options::RetryAfter;
 
+/// Errors raised while constructing a client or preparing a request.
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryClientBuildError {
+    /// The base URL could not be parsed.
     #[error("invalid base URL")]
     Url(String),
+    /// The base URL is not HTTPS. Debug and `test-support` builds allow HTTP
+    /// loopback for local tests.
     #[error("base URL must use https unless test-support HTTP loopback is enabled")]
     InsecureBaseUrl,
+    /// More than one auth mode was configured.
     #[error("multiple authentication modes configured")]
     MultipleAuthModes,
+    /// The purpose in [`crate::RequestOptions`] conflicts with the request body.
     #[error("request purpose conflicts with request body purpose")]
     PurposeConflict,
+    /// The request body failed to serialize before sending.
     #[error("request body could not be serialized")]
     RequestSerialization,
+    /// An idempotency key was supplied on a route that ignores it.
     #[error("idempotency key is not supported for this route")]
     UnsupportedIdempotencyKey,
 }
 
+/// RFC 7807-style Problem Details emitted by Registry Notary.
+///
+/// The server may include sensitive details such as subject identifiers or
+/// source-field names in `detail`. `Debug`, `Display`, and portable errors do
+/// not render that field.
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ProblemDetails {
+    /// Problem type URI, deserialized from the JSON `type` field.
     #[serde(rename = "type")]
     pub problem_type: Option<String>,
+    /// Human-readable title.
     pub title: String,
+    /// HTTP status code.
     pub status: u16,
+    /// Sensitive detail. Do not log this directly.
     pub detail: String,
+    /// Stable machine-readable code.
     pub code: String,
 }
 
@@ -47,9 +65,15 @@ impl std::fmt::Display for ProblemDetails {
     }
 }
 
+/// OpenID4VCI error envelope.
+///
+/// `error_description` can include holder or credential details and is redacted
+/// from incidental formatting.
 #[derive(Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct Oid4vciError {
+    /// OAuth/OID4VCI error code.
     pub error: String,
+    /// Optional sensitive description.
     #[serde(default)]
     pub error_description: Option<String>,
 }
@@ -72,36 +96,58 @@ impl std::fmt::Display for Oid4vciError {
     }
 }
 
+/// Language-binding-safe error family.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PortableErrorKind {
+    /// Registry Notary Problem Details.
     Problem,
+    /// OpenID4VCI error envelope.
     Oid4vci,
+    /// Response body could not be decoded.
     Decode,
+    /// Response body exceeded the client limit.
     BodyTooLarge,
+    /// Transport failure before a response was decoded.
     Transport,
+    /// Client build or request preparation failure.
     Build,
 }
 
+/// Redacted error envelope intended for Python, Node, and FFI boundaries.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct PortableClientError {
+    /// Broad error family.
     pub kind: PortableErrorKind,
+    /// HTTP status when a response was available.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<u16>,
+    /// Stable problem or client error code.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
+    /// Safe title suitable for application logs.
     pub title: String,
+    /// Whether retry may be useful if the route also allows retry.
     pub retryable: bool,
+    /// Server request id, when present.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
 }
 
+/// Errors returned by client operations.
+///
+/// `Display` is intentionally opaque for decode/body failures and redacts
+/// sensitive problem or OID4VCI detail. Use [`Self::request_id`],
+/// [`Self::status`], and [`Self::problem_code`] for safe logging.
 #[derive(Debug, thiserror::Error)]
 pub enum NotaryClientError {
+    /// Build or request-preparation failure.
     #[error(transparent)]
     Build(#[from] NotaryClientBuildError),
+    /// Request transport failed.
     #[error("transport error")]
     Transport(#[source] reqwest::Error),
+    /// Registry Notary returned Problem Details.
     #[error("registry notary problem: {problem}")]
     Problem {
         status: reqwest::StatusCode,
@@ -109,6 +155,7 @@ pub enum NotaryClientError {
         request_id: Option<String>,
         retry_after: Option<RetryAfter>,
     },
+    /// OpenID4VCI endpoint returned an OID4VCI error envelope.
     #[error("openid4vci error: {error}")]
     Oid4vci {
         status: reqwest::StatusCode,
@@ -116,16 +163,19 @@ pub enum NotaryClientError {
         request_id: Option<String>,
         retry_after: Option<RetryAfter>,
     },
+    /// Response body could not be decoded.
     #[error("failed to decode response body")]
     Decode {
         status: reqwest::StatusCode,
         request_id: Option<String>,
     },
+    /// Response body exceeded the configured route limit.
     #[error("response body exceeded configured size limit")]
     BodyTooLarge { request_id: Option<String> },
 }
 
 impl NotaryClientError {
+    /// HTTP status associated with the error, when available.
     #[must_use]
     pub fn status(&self) -> Option<reqwest::StatusCode> {
         match self {
@@ -135,6 +185,7 @@ impl NotaryClientError {
         }
     }
 
+    /// Stable server or OID4VCI problem code, when available.
     #[must_use]
     pub fn problem_code(&self) -> Option<&str> {
         match self {
@@ -144,6 +195,7 @@ impl NotaryClientError {
         }
     }
 
+    /// Server request id captured before decoding the response body.
     #[must_use]
     pub fn request_id(&self) -> Option<&str> {
         match self {
@@ -155,6 +207,7 @@ impl NotaryClientError {
         }
     }
 
+    /// Parsed `Retry-After` header, when the server provided one.
     #[must_use]
     pub fn retry_after(&self) -> Option<&RetryAfter> {
         match self {
@@ -165,12 +218,16 @@ impl NotaryClientError {
         }
     }
 
+    /// Whether the error class is retryable in principle.
+    ///
+    /// Route-specific retry rules still apply.
     #[must_use]
     pub fn is_retryable(&self) -> bool {
         matches!(self.status().map(|status| status.as_u16()), Some(429 | 503))
             || matches!(self, Self::Transport(_))
     }
 
+    /// Convert to a redacted portable envelope for bindings or FFI.
     #[must_use]
     pub fn portable(&self) -> PortableClientError {
         match self {
