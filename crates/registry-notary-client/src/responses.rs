@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Client-owned response DTOs and ergonomic wrappers.
 
+use std::fmt;
+
 use registry_notary_core::{BatchEvaluateResponse, BatchItemResponse, ClaimResultView};
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +23,7 @@ pub struct FormatsResponse {
     pub formats: Vec<registry_notary_core::EvidenceFormat>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CredentialIssueResponse {
     pub credential_id: String,
     pub credential_profile: String,
@@ -31,6 +33,21 @@ pub struct CredentialIssueResponse {
     pub credential: String,
     pub issuer_signed_jwt: String,
     pub disclosures: Vec<String>,
+}
+
+impl fmt::Debug for CredentialIssueResponse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CredentialIssueResponse")
+            .field("credential_id", &self.credential_id)
+            .field("credential_profile", &self.credential_profile)
+            .field("format", &self.format)
+            .field("issuer", &self.issuer)
+            .field("expires_at", &self.expires_at)
+            .field("credential", &"<redacted>")
+            .field("issuer_signed_jwt", &"<redacted>")
+            .field("disclosures", &"<redacted>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -62,11 +79,21 @@ pub struct HealthResponse {
     pub checks: serde_json::Value,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct NotaryResponse<T> {
     pub body: T,
     pub request_id: Option<String>,
     pub retry_after: Option<RetryAfter>,
+}
+
+impl<T> fmt::Debug for NotaryResponse<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NotaryResponse")
+            .field("body", &"<redacted>")
+            .field("request_id", &self.request_id)
+            .field("retry_after", &self.retry_after)
+            .finish()
+    }
 }
 
 impl<T> NotaryResponse<T> {
