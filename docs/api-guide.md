@@ -127,10 +127,18 @@ response JWT. The route is mounted only when federation is enabled.
 
 ## Error Shape
 
-Errors use Problem Details-style responses. Public errors are intentionally
-generic where details could reveal source existence, citizen identifiers, holder
-material, or policy internals. More specific denial context belongs in redacted
-audit.
+Error dispatch is route-family based. Clients must not choose the parser from
+`Content-Type` alone because OID4VCI error envelopes are also JSON.
+
+| Route family | Routes | Error envelope |
+| --- | --- | --- |
+| Evidence, discovery, admin, credential status, and federation | `/claims`, `/claims/{claim_id}`, `/formats`, `/claims/evaluate`, `/claims/batch-evaluate`, `/evidence/render`, `/credentials/issue`, `/credentials/status/{credential_id}`, `/admin/credentials/status/{credential_id}`, `/admin/reload`, `/openapi.json`, `/.well-known/evidence-service`, `/.well-known/evidence/jwks.json`, `/federation/v1/evaluations`, `/healthz` | RFC 7807-style Registry Notary Problem Details as `application/problem+json` |
+| OID4VCI wallet facade | `/.well-known/openid-credential-issuer`, `/oid4vci/credential-offer`, `/oid4vci/nonce`, `/oid4vci/credential` | OpenID4VCI wire error JSON with `error` and optional `error_description`; disabled facade routes return `404` with no error envelope |
+| Readiness probe | `/ready` | `503` readiness failures return the readiness status JSON payload; generic `4XX` client errors use Problem Details |
+
+Problem Details responses are intentionally generic where details could reveal
+source existence, citizen identifiers, holder material, or policy internals.
+More specific denial context belongs in redacted audit.
 
 ## Integration Procedure
 

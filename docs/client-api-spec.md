@@ -401,6 +401,14 @@ Error parsing is route-aware. OpenID4VCI routes, and any route documented by the
 server as returning OpenID4VCI errors, parse OpenID4VCI error envelopes rather
 than Problem Details even when the content type is generic JSON.
 
+Route-family dispatch:
+
+| Route family | Routes | Error parser |
+| --- | --- | --- |
+| Evidence, discovery, admin, credential status, and federation | `/claims`, `/claims/{claim_id}`, `/formats`, `/claims/evaluate`, `/claims/batch-evaluate`, `/evidence/render`, `/credentials/issue`, `/credentials/status/{credential_id}`, `/admin/credentials/status/{credential_id}`, `/admin/reload`, `/openapi.json`, `/.well-known/evidence-service`, `/.well-known/evidence/jwks.json`, `/federation/v1/evaluations`, `/healthz` | Problem Details |
+| OID4VCI wallet facade | `/.well-known/openid-credential-issuer`, `/oid4vci/credential-offer`, `/oid4vci/nonce`, `/oid4vci/credential` | OpenID4VCI wire error JSON; disabled facade routes can return `404` with no envelope |
+| Readiness probe | `/ready` | Readiness status JSON for `503`; Problem Details for generic `4XX` client errors |
+
 ## Error Model
 
 The Rust client should expose typed errors:

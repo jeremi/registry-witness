@@ -35,6 +35,49 @@ fn build_openapi_document() -> OpenApi {
             { "apiKeyAuth": [] },
             { "bearerAuth": [] }
         ],
+        "x-registry-notary-error-envelope-contract": {
+            "dispatch": "Route family is authoritative. Clients must not infer the error envelope from Content-Type alone.",
+            "families": {
+                "problem_details": {
+                    "content_type": "application/problem+json",
+                    "schema": "#/components/schemas/ProblemDetails",
+                    "routes": [
+                        "GET /healthz",
+                        "POST /admin/reload",
+                        "GET /openapi.json",
+                        "GET /.well-known/evidence-service",
+                        "GET /.well-known/evidence/jwks.json",
+                        "GET /claims",
+                        "GET /claims/{claim_id}",
+                        "GET /formats",
+                        "POST /claims/evaluate",
+                        "POST /claims/batch-evaluate",
+                        "POST /evidence/render",
+                        "POST /credentials/issue",
+                        "GET /credentials/status/{credential_id}",
+                        "POST /admin/credentials/status/{credential_id}",
+                        "POST /federation/v1/evaluations"
+                    ]
+                },
+                "oid4vci_wire_error": {
+                    "content_type": "application/json",
+                    "schema": "#/components/schemas/Oid4vciError",
+                    "routes": [
+                        "GET /.well-known/openid-credential-issuer",
+                        "GET /oid4vci/credential-offer",
+                        "POST /oid4vci/nonce",
+                        "POST /oid4vci/credential"
+                    ],
+                    "exception": "When the OID4VCI facade or nonce endpoint is disabled, these routes return 404 with no error envelope."
+                },
+                "readiness_status": {
+                    "content_type": "application/json",
+                    "schema": "#/components/schemas/ReadinessStatus",
+                    "routes": ["GET /ready"],
+                    "exception": "Readiness failure is a probe status payload, not Problem Details. Generic client errors on /ready still use Problem Details."
+                }
+            }
+        },
         "x-registry-notary-excluded-paths": {
             "/metrics": "Prometheus scrape endpoint with text/plain output. It is an operational route, not an SDK API surface."
         },
@@ -596,6 +639,7 @@ fn build_openapi_document() -> OpenApi {
         }
     });
     add_response_examples(&mut raw_document);
+    add_error_envelope_operation_extensions(&mut raw_document);
 
     let mut document: OpenApi = serde_json::from_value(raw_document)
         .expect("static Registry Notary OpenAPI document is valid");
@@ -1226,6 +1270,75 @@ fn add_response_examples(document: &mut Value) {
         "Credential status store is unavailable",
         credential_status_problem_example(503, "credential_status.unavailable"),
     );
+}
+
+fn add_error_envelope_operation_extensions(document: &mut Value) {
+    for (path, method) in [
+        ("/healthz", "get"),
+        ("/admin/reload", "post"),
+        ("/openapi.json", "get"),
+        ("/.well-known/evidence-service", "get"),
+        ("/.well-known/evidence/jwks.json", "get"),
+        ("/claims", "get"),
+        ("/claims/{claim_id}", "get"),
+        ("/formats", "get"),
+        ("/claims/evaluate", "post"),
+        ("/claims/batch-evaluate", "post"),
+        ("/evidence/render", "post"),
+        ("/credentials/issue", "post"),
+        ("/credentials/status/{credential_id}", "get"),
+        ("/admin/credentials/status/{credential_id}", "post"),
+        ("/federation/v1/evaluations", "post"),
+    ] {
+        set_error_envelope_extension(
+            document,
+            path,
+            method,
+            json!({
+                "family": "problem_details",
+                "content_type": "application/problem+json",
+                "schema": "#/components/schemas/ProblemDetails"
+            }),
+        );
+    }
+
+    for (path, method) in [
+        ("/.well-known/openid-credential-issuer", "get"),
+        ("/oid4vci/credential-offer", "get"),
+        ("/oid4vci/nonce", "post"),
+        ("/oid4vci/credential", "post"),
+    ] {
+        set_error_envelope_extension(
+            document,
+            path,
+            method,
+            json!({
+                "family": "oid4vci_wire_error",
+                "content_type": "application/json",
+                "schema": "#/components/schemas/Oid4vciError",
+                "exception": "disabled facade routes return 404 with no error envelope"
+            }),
+        );
+    }
+
+    set_error_envelope_extension(
+        document,
+        "/ready",
+        "get",
+        json!({
+            "family": "readiness_status",
+            "content_type": "application/json",
+            "schema": "#/components/schemas/ReadinessStatus",
+            "exception": "503 readiness failures use ReadinessStatus; generic 4XX client errors use Problem Details"
+        }),
+    );
+}
+
+fn set_error_envelope_extension(document: &mut Value, path: &str, method: &str, envelope: Value) {
+    let Some(operation) = document["paths"][path][method].as_object_mut() else {
+        return;
+    };
+    operation.insert("x-registry-notary-error-envelope".to_string(), envelope);
 }
 
 fn claim_ref_schema() -> Value {
@@ -2416,6 +2529,38 @@ mod tests {
             doc["paths"]["/oid4vci/credential"]["post"]["responses"]["429"]["headers"]
                 ["Retry-After"]["schema"]["type"],
             json!("string")
+        );
+    }
+
+    #[test]
+    fn route_family_error_envelope_contract_is_machine_readable() {
+        let doc = serde_json::to_value(openapi_document()).expect("document serializes");
+
+        assert_eq!(
+            doc["x-registry-notary-error-envelope-contract"]["dispatch"],
+            json!("Route family is authoritative. Clients must not infer the error envelope from Content-Type alone.")
+        );
+        assert_eq!(
+            doc["paths"]["/evidence/render"]["post"]["x-registry-notary-error-envelope"]["family"],
+            json!("problem_details")
+        );
+        assert_eq!(
+            doc["paths"]["/evidence/render"]["post"]["x-registry-notary-error-envelope"]["schema"],
+            json!("#/components/schemas/ProblemDetails")
+        );
+        assert_eq!(
+            doc["paths"]["/oid4vci/credential"]["post"]["x-registry-notary-error-envelope"]
+                ["family"],
+            json!("oid4vci_wire_error")
+        );
+        assert_eq!(
+            doc["paths"]["/oid4vci/credential"]["post"]["x-registry-notary-error-envelope"]
+                ["schema"],
+            json!("#/components/schemas/Oid4vciError")
+        );
+        assert_eq!(
+            doc["paths"]["/ready"]["get"]["x-registry-notary-error-envelope"]["family"],
+            json!("readiness_status")
         );
     }
 
