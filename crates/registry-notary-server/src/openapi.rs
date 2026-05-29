@@ -2656,8 +2656,8 @@ mod tests {
             assert!(
                 post_parameters(&doc, path)
                     .iter()
-                    .any(|parameter| parameter["name"] == json!("Idempotency-Key")
-                        && parameter["in"] == json!("header")),
+                    .any(|parameter| parameter["name"] == "Idempotency-Key"
+                        && parameter["in"] == "header"),
                 "{path} must advertise Idempotency-Key"
             );
         }
@@ -2665,7 +2665,7 @@ mod tests {
             assert!(
                 post_parameters(&doc, path)
                     .iter()
-                    .all(|parameter| parameter["name"] != json!("Idempotency-Key")),
+                    .all(|parameter| parameter["name"] != "Idempotency-Key"),
                 "{path} must not advertise unsupported Idempotency-Key semantics"
             );
         }

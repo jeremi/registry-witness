@@ -3025,7 +3025,7 @@ async fn idempotency_key_contract_matches_supported_post_route_matrix() {
         .await;
     conflicting_batch.assert_status(StatusCode::CONFLICT);
     let conflict_body: Value = conflicting_batch.json();
-    assert_eq!(conflict_body["code"], json!("idempotency.conflict"));
+    assert_eq!(conflict_body["code"], "idempotency.conflict");
 }
 
 #[tokio::test]
