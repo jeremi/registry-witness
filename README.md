@@ -302,6 +302,20 @@ out `registry-platform` at `REGISTRY_PLATFORM_REF` beside this repository before
 running Cargo jobs. Private platform checkouts require a repository secret named
 `REGISTRY_PLATFORM_TOKEN`.
 
+Run the focused Platform compatibility gate before merging Platform-facing
+changes:
+
+```bash
+REGISTRY_PLATFORM_SOURCE_DIR=../registry-platform scripts/check-platform-compat.sh
+```
+
+The command checks the all-feature server build plus the OID4VCI nonce replay
+and keyed audit-chain tests that exercise shared Platform security APIs. When
+`REGISTRY_PLATFORM_SOURCE_DIR` is not the sibling path encoded in Cargo, the
+script builds in a temporary sibling-layout copy so Cargo resolves the same
+Platform checkout the script validated. Set `CEL_MAPPING_SOURCE_DIR` as well
+when the Crosswalk checkout is not available at `../cel-mapping`.
+
 CEL is disabled in default beta builds. It remains available through the
 explicit `registry-notary-cel` feature and is implemented through the local
 `crosswalk-core` crate at `../cel-mapping/crates/crosswalk-core`. The current

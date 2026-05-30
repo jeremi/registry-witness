@@ -30,8 +30,8 @@ use registry_notary_core::{
     StandaloneRegistryNotaryConfig, SubjectRequest, VerifiedClaimName, VerifiedClaimValue,
 };
 use registry_platform_audit::{
-    AuditError, AuditKeyHasher, AuditSink as PlatformAuditSink, ChainState, JsonlFileSink,
-    JsonlStdoutSink, SyslogSink,
+    AuditError, AuditKeyHasher, AuditProfile, AuditSink as PlatformAuditSink, ChainState,
+    JsonlFileSink, JsonlStdoutSink, SyslogSink,
 };
 use registry_platform_authcommon::{
     parse_bearer_token, parse_fingerprint, verify_api_key, FingerprintFormatError,
@@ -140,7 +140,7 @@ pub fn standalone_router(
         self_attestation,
         oid4vci,
         federation,
-        auth_state.audit.hasher.clone(),
+        auth_state.audit.profile.key_hasher(),
         config.federation.enabled.then(|| auth_state.audit.clone()),
         replay,
         credential_status,
@@ -1528,10 +1528,11 @@ impl AuthAuditState {
                 config.self_attestation.rate_limits.clone(),
             ))
         });
-        let self_attestation_rate_keys = config
-            .self_attestation
-            .enabled
-            .then(|| Arc::new(SelfAttestationRateLimitKeys::new(audit.hasher.clone())));
+        let self_attestation_rate_keys = config.self_attestation.enabled.then(|| {
+            Arc::new(SelfAttestationRateLimitKeys::new(
+                audit.profile.key_hasher(),
+            ))
+        });
         Ok(Self {
             authenticator: Authenticator::from_config(config)?,
             audit,
@@ -1583,23 +1584,25 @@ impl Authenticator {
                     fetch_url_policy.clone(),
                 ));
                 let verifier = TokenVerifier::new(
-                    TokenVerifierConfig {
-                        issuer: oidc.issuer.clone(),
-                        audiences: oidc.audiences.clone(),
+                    TokenVerifierConfig::registry_notary_access_profile(
+                        oidc.issuer.clone(),
+                        oidc.audiences.clone(),
                         allowed_algorithms,
-                        allowed_typ: oidc.allowed_typ.clone(),
-                        scope_claim: oidc.scope_claim.clone(),
-                        scope_separator,
-                        scope_map: Some(
+                        oidc.allowed_typ.clone(),
+                    )
+                    .with_scope_claim(oidc.scope_claim.clone())
+                    .with_scope_separator(scope_separator)
+                    .with_scope_map(
+                        Some(
                             oidc.scope_map
                                 .iter()
                                 .map(|(from, to)| (from.clone(), to.clone()))
                                 .collect::<HashMap<_, _>>(),
                         )
                         .filter(|scope_map| !scope_map.is_empty()),
-                        allowed_clients: oidc.allowed_clients.clone(),
-                        leeway: Duration::from_secs(oidc.leeway_seconds),
-                    },
+                    )
+                    .with_allowed_clients(oidc.allowed_clients.clone())
+                    .with_leeway(Duration::from_secs(oidc.leeway_seconds)),
                     fetcher,
                 );
                 let userinfo_issuers = if oidc.userinfo_issuers.is_empty() {
@@ -1677,14 +1680,14 @@ impl Authenticator {
 pub(crate) struct AuditPipeline {
     sink: Arc<dyn PlatformAuditSink>,
     chain: Arc<OnceCell<ChainState>>,
-    hasher: AuditKeyHasher,
+    profile: AuditProfile,
 }
 
 impl std::fmt::Debug for AuditPipeline {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AuditPipeline")
             .field("sink", &"<redacted>")
-            .field("hasher", &self.hasher)
+            .field("profile", &self.profile)
             .finish()
     }
 }
@@ -1697,7 +1700,7 @@ impl AuditPipeline {
             .hash_secret_env
             .as_deref()
             .ok_or(StandaloneServerError::MissingAuditHashSecretEnv)?;
-        let hasher = AuditKeyHasher::from_env(hash_secret_env)?;
+        let profile = AuditProfile::registry_notary_from_env(hash_secret_env)?;
         let sink: Arc<dyn PlatformAuditSink> = match config.sink.as_str() {
             "stdout" => {
                 validate_no_file_audit_fields(config, "stdout")?;
@@ -1734,7 +1737,7 @@ impl AuditPipeline {
         Ok(Self {
             sink,
             chain: Arc::new(OnceCell::new()),
-            hasher,
+            profile,
         })
     }
 
@@ -1743,22 +1746,26 @@ impl AuditPipeline {
         Self {
             sink,
             chain: Arc::new(OnceCell::new()),
-            hasher: AuditKeyHasher::unkeyed_dev_only(),
+            profile: AuditProfile::unkeyed_dev_only(),
         }
     }
 
     pub(crate) fn hash_principal(&self, value: &str) -> Hashed<PrincipalIdentifier> {
-        Hashed::from_hash(self.hasher.hash(value))
+        Hashed::from_hash(self.profile.key_hasher().hash(value))
     }
 
     pub(crate) fn hash_request_identifier(&self, value: &str) -> Hashed<RequestIdentifier> {
-        Hashed::from_hash(self.hasher.hash(value))
+        Hashed::from_hash(self.profile.key_hasher().hash(value))
     }
 
     pub(crate) async fn emit(&self, event: &EvidenceAuditEvent) -> Result<(), AuditError> {
         let chain = self
             .chain
-            .get_or_try_init(|| async { ChainState::bootstrap(self.sink.as_ref()).await })
+            .get_or_try_init(|| async {
+                self.profile
+                    .bootstrap_or_start_empty(self.sink.as_ref())
+                    .await
+            })
             .await?;
         let record = serde_json::to_value(event).map_err(AuditError::Json)?;
         chain.append(self.sink.as_ref(), record).await?;
@@ -1832,7 +1839,7 @@ async fn auth_audit_middleware(
         });
         let audit_event = build_audit_event(
             None,
-            &state.audit.hasher,
+            &state.audit.profile.key_hasher(),
             &method,
             &path,
             correlation_id.clone(),
@@ -1869,7 +1876,7 @@ async fn auth_audit_middleware(
                 });
                 let audit_event = build_audit_event(
                     None,
-                    &state.audit.hasher,
+                    &state.audit.profile.key_hasher(),
                     &method,
                     &path,
                     correlation_id.clone(),
@@ -1880,7 +1887,7 @@ async fn auth_audit_middleware(
             let response = crate::api::evidence_error_response(error);
             let audit_event = build_audit_event(
                 None,
-                &state.audit.hasher,
+                &state.audit.profile.key_hasher(),
                 &method,
                 &path,
                 correlation_id.clone(),
@@ -1894,7 +1901,7 @@ async fn auth_audit_middleware(
     let response = with_request_correlation_id(correlation_id.clone(), next.run(request)).await;
     let audit_event = build_audit_event(
         Some(&principal),
-        &state.audit.hasher,
+        &state.audit.profile.key_hasher(),
         &method,
         &path,
         correlation_id,
@@ -4601,7 +4608,7 @@ sources:
                 SelfAttestationRateLimiter::new(rate_limits),
             )),
             self_attestation_rate_keys: Some(Arc::new(SelfAttestationRateLimitKeys::new(
-                audit.hasher.clone(),
+                audit.profile.key_hasher(),
             ))),
         });
         let app = Router::new()

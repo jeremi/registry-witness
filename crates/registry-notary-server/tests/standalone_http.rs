@@ -22,7 +22,9 @@ use registry_notary_core::{
     SD_JWT_VC_SIGNING_ALG,
 };
 use registry_notary_server::{standalone_router, StandaloneServerError};
-use registry_platform_audit::{verify_jsonl_lines, AuditEnvelope};
+use registry_platform_audit::{
+    verify_jsonl_lines, verify_jsonl_lines_with_hasher, AuditChainHasher, AuditEnvelope,
+};
 #[cfg(feature = "registry-notary-cel")]
 use registry_platform_crypto::verify;
 use registry_platform_crypto::{did_jwk_from_public_jwk, sign, PrivateJwk};
@@ -3128,7 +3130,13 @@ async fn audit_chain_bootstraps_from_sink_tail() {
         .assert_status(StatusCode::UNAUTHORIZED);
 
     let contents = std::fs::read_to_string(&audit_path).expect("audit was written");
-    verify_jsonl_lines(contents.lines()).expect("audit chain verifies");
+    assert!(
+        verify_jsonl_lines(contents.lines()).is_err(),
+        "runtime audit chain must not verify with the dev-only unkeyed hasher"
+    );
+    let hasher = AuditChainHasher::from_env("REGISTRY_NOTARY_AUDIT_HASH_SECRET")
+        .expect("configured audit chain secret loads");
+    verify_jsonl_lines_with_hasher(contents.lines(), &hasher).expect("audit chain verifies");
     let envelopes = audit_envelopes(&audit_path);
     assert_eq!(envelopes.len(), 2);
     assert_eq!(envelopes[1].prev_hash, Some(envelopes[0].record_hash));
