@@ -163,6 +163,25 @@ class RegistryNotaryClientTests(unittest.TestCase):
         self.assertEqual(recorder.requests[0]["body"], raw_request)
         self.assertEqual(recorder.requests[0]["headers"]["Data-Purpose"], "eligibility")
 
+    def test_high_level_evaluate_rejects_single_claim_string_or_mapping(self) -> None:
+        client = RegistryNotaryClient(base_url="https://notary.example")
+
+        with self.assertRaises(NotaryError) as string_error:
+            client.evaluate(
+                subject_id="subj-1",
+                id_type="NATIONAL_ID",
+                claims="age",  # type: ignore[arg-type]
+            )
+        self.assertEqual(string_error.exception.code, "request.invalid_claims")
+
+        with self.assertRaises(NotaryError) as mapping_error:
+            client.evaluate(
+                subject_id="subj-1",
+                id_type="NATIONAL_ID",
+                claims={"id": "age", "version": "2026-05"},  # type: ignore[arg-type]
+            )
+        self.assertEqual(mapping_error.exception.code, "request.invalid_claims")
+
     def test_async_evaluate_returns_response(self) -> None:
         recorder = _Recorder()
         with Server(recorder) as base_url:

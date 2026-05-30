@@ -119,7 +119,7 @@ class RegistryNotaryClient:
 
         request = {
             "subject": {"id": subject_id, "id_type": id_type},
-            "claims": list(claims),
+            "claims": _claim_list(claims),
         }
         return self.evaluate_request(
             request,
@@ -144,7 +144,7 @@ class RegistryNotaryClient:
 
         request = {
             "subject": {"id": subject_id, "id_type": id_type},
-            "claims": list(claims),
+            "claims": _claim_list(claims),
         }
         return await self.aevaluate_request(
             request,
@@ -805,6 +805,16 @@ def _coerce_retry_policy(policy: RetryPolicy | Mapping[str, Any] | None) -> Retr
     if isinstance(policy, RetryPolicy):
         return policy
     return RetryPolicy(**dict(policy))
+
+
+def _claim_list(claims: Iterable[str | Mapping[str, Any]]) -> list[str | Mapping[str, Any]]:
+    if isinstance(claims, str) or isinstance(claims, Mapping):
+        raise NotaryError(
+            kind="client",
+            code="request.invalid_claims",
+            title="claims must be an iterable of claim strings or claim reference mappings",
+        )
+    return list(claims)
 
 
 def _allowed_attempts(policy: RetryPolicy, retry_kind: str, idempotency_key: str | None) -> int:
