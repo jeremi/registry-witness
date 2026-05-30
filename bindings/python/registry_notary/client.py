@@ -62,15 +62,23 @@ class RegistryNotaryClient:
         user_agent: str | None = None,
         retry_policy: RetryPolicy | Mapping[str, Any] | None = None,
         transport: Any | None = None,
+        allow_insecure_internal_http: bool = False,
     ) -> None:
         parsed = urlsplit(base_url)
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise NotaryError(kind="build", code="build.invalid_url", title="Invalid base URL")
-        if parsed.scheme == "http" and not _is_loopback_host(parsed.hostname):
+        if (
+            parsed.scheme == "http"
+            and not _is_loopback_host(parsed.hostname)
+            and not allow_insecure_internal_http
+        ):
             raise NotaryError(
                 kind="build",
                 code="build.insecure_base_url",
-                title="Base URL must use https unless the host is loopback",
+                title=(
+                    "Base URL must use https unless the host is loopback or "
+                    "allow_insecure_internal_http is enabled"
+                ),
             )
         if bearer_token and api_key:
             raise NotaryError(
@@ -101,7 +109,7 @@ class RegistryNotaryClient:
         *,
         subject_id: str,
         id_type: str,
-        claims: Iterable[str],
+        claims: Iterable[str | Mapping[str, Any]],
         purpose: str | None = None,
         request_id: str | None = None,
         traceparent: str | None = None,
@@ -126,7 +134,7 @@ class RegistryNotaryClient:
         *,
         subject_id: str,
         id_type: str,
-        claims: Iterable[str],
+        claims: Iterable[str | Mapping[str, Any]],
         purpose: str | None = None,
         request_id: str | None = None,
         traceparent: str | None = None,
