@@ -324,11 +324,14 @@ CEL-enabled builds are experimental until hardened subprocess isolation lands.
 
 ## Docker
 
-The Docker build also needs the sibling platform workspace. Build with Docker
-BuildKit and pass `../registry-platform` as a named context:
+The Docker build also needs the sibling Platform and Crosswalk workspaces.
+Build with Docker BuildKit and pass both named contexts:
 
 ```bash
-docker build --build-context registry-platform=../registry-platform -t registry-notary .
+docker build \
+  --build-context registry-platform=../registry-platform \
+  --build-context cel-mapping=../cel-mapping \
+  -t registry-notary .
 ```
 
 Native runs default to `127.0.0.1:8081`. The Docker image sets
